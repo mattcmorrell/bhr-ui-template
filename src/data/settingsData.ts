@@ -43,6 +43,72 @@ export interface Subscription {
   employees: number;
 }
 
+export interface AccessRole {
+  id: string;
+  name: string;
+  description: string;
+  members: number;
+  scope: string;
+}
+
+export interface ApprovalWorkflow {
+  id: string;
+  name: string;
+  trigger: string;
+  approvers: string[];
+  sla: string;
+}
+
+export interface DirectoryField {
+  id: string;
+  label: string;
+  visibility: string;
+  source: string;
+}
+
+export interface TimeOffPolicy {
+  id: string;
+  name: string;
+  accrual: string;
+  carryover: string;
+  requiresApproval: boolean;
+}
+
+export interface PayrollSetting {
+  id: string;
+  label: string;
+  value: string;
+  status: 'configured' | 'needs-review';
+}
+
+export interface BenefitPlan {
+  id: string;
+  name: string;
+  endDate: string;
+  eligibility: string;
+  status: string;
+}
+
+export interface BenefitPlanGroup {
+  id: string;
+  label: string;
+  icon: IconName;
+  plans: BenefitPlan[];
+}
+
+export interface BenefitPlanYear {
+  id: string;
+  name: string;
+  plans: number;
+  status: 'Closed' | 'Active' | 'Draft';
+  duration: string;
+  pending?: number;
+  approved?: number;
+  incomplete?: number;
+  missingInfoCount?: number;
+  nameIsLink?: boolean;
+}
+
 export const settingsNavItems: SettingsNavItem[] = [
   { id: 'account', label: 'Account', icon: 'wrench' },
   { id: 'access-levels', label: 'Access Levels', icon: 'lock' },
@@ -74,11 +140,12 @@ export const settingsNavItems: SettingsNavItem[] = [
 ];
 
 export const benefitsSubTabs: SubTab[] = [
-  { id: 'carriers-plans', label: 'Carriers & Plans' },
-  { id: 'eligibility-groups', label: 'Eligibility Groups' },
-  { id: 'benefits-integrations', label: 'Benefits Integrations' },
-  { id: 'files', label: 'Files' },
-  { id: 'benefits-admin', label: 'Benefits Administration' },
+  { id: 'plan-years', label: 'Plan Years' },
+  { id: 'plans', label: 'Plans' },
+  { id: 'windows', label: 'Windows' },
+  { id: 'elections', label: 'Elections' },
+  { id: 'carriers', label: 'Carriers' },
+  { id: 'carrier-pdfs', label: 'Carrier PDFs' },
 ];
 
 export interface SettingsCarrier {
@@ -169,3 +236,204 @@ export const upgrades: Upgrade[] = [
 export const dataCenter = {
   location: 'Ohio',
 };
+
+export const accessRoles: AccessRole[] = [
+  {
+    id: 'hr-admin',
+    name: 'HR Admin',
+    description: 'Full access to employee records, approvals, and company settings.',
+    members: 4,
+    scope: 'All employees',
+  },
+  {
+    id: 'manager',
+    name: 'Manager',
+    description: 'Can manage direct reports, approve requests, and review performance.',
+    members: 21,
+    scope: 'Direct reports only',
+  },
+  {
+    id: 'payroll-specialist',
+    name: 'Payroll Specialist',
+    description: 'Access to payroll setup, exports, and tax profile configuration.',
+    members: 3,
+    scope: 'Payroll and compensation',
+  },
+];
+
+export const approvalWorkflows: ApprovalWorkflow[] = [
+  {
+    id: 'pto',
+    name: 'Time Off Requests',
+    trigger: 'Employee submits time off request',
+    approvers: ['Direct Manager', 'HR Admin'],
+    sla: '48 hours',
+  },
+  {
+    id: 'job-requisition',
+    name: 'Job Requisitions',
+    trigger: 'Hiring manager opens a new role',
+    approvers: ['Department VP', 'Finance'],
+    sla: '72 hours',
+  },
+  {
+    id: 'comp-change',
+    name: 'Compensation Changes',
+    trigger: 'Salary or bonus update proposed',
+    approvers: ['People Ops', 'CFO'],
+    sla: '24 hours',
+  },
+];
+
+export const directoryFields: DirectoryField[] = [
+  { id: 'display-name', label: 'Display Name', visibility: 'Everyone', source: 'Core profile' },
+  { id: 'department', label: 'Department', visibility: 'Everyone', source: 'Job information' },
+  { id: 'work-email', label: 'Work Email', visibility: 'Everyone', source: 'Contact fields' },
+  { id: 'phone', label: 'Work Phone', visibility: 'Manager+ only', source: 'Contact fields' },
+  { id: 'location', label: 'Location', visibility: 'Everyone', source: 'Employment details' },
+];
+
+export const timeOffPolicies: TimeOffPolicy[] = [
+  {
+    id: 'vacation',
+    name: 'Vacation',
+    accrual: '6.67 hours per pay period',
+    carryover: 'Up to 40 hours annually',
+    requiresApproval: true,
+  },
+  {
+    id: 'sick',
+    name: 'Sick Leave',
+    accrual: '4 hours per pay period',
+    carryover: 'Up to 80 hours annually',
+    requiresApproval: true,
+  },
+  {
+    id: 'bereavement',
+    name: 'Bereavement',
+    accrual: 'As needed (up to 3 days/event)',
+    carryover: 'Not applicable',
+    requiresApproval: false,
+  },
+];
+
+export const payrollSettings: PayrollSetting[] = [
+  { id: 'pay-schedule', label: 'Pay Schedule', value: 'Bi-weekly (Friday)', status: 'configured' },
+  { id: 'tax-profile', label: 'Tax Profile', value: 'Federal + 14 state registrations', status: 'configured' },
+  { id: 'direct-deposit', label: 'Direct Deposit Rules', value: 'Net pay split enabled', status: 'configured' },
+  { id: 'garnishments', label: 'Garnishment Rules', value: '2 active configurations', status: 'needs-review' },
+];
+
+export const benefitPlanGroups: BenefitPlanGroup[] = [
+  {
+    id: 'medical',
+    label: 'Medical',
+    icon: 'heart',
+    plans: [
+      {
+        id: 'medical-1',
+        name: 'Medical Plan Name 1',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+      {
+        id: 'medical-2',
+        name: 'Medical Plan Name 2',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+      {
+        id: 'medical-3',
+        name: 'Medical Plan Name 3',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+    ],
+  },
+  {
+    id: 'dental',
+    label: 'Dental',
+    icon: 'star',
+    plans: [
+      {
+        id: 'dental-1',
+        name: 'Dental Plan Name 1',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+      {
+        id: 'dental-2',
+        name: 'Dental Plan Name 2',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+    ],
+  },
+  {
+    id: 'vision',
+    label: 'Vision',
+    icon: 'eye',
+    plans: [
+      {
+        id: 'vision-1',
+        name: 'Vision Plan Name 1',
+        endDate: '12/31/2026',
+        eligibility: 'Full-Time',
+        status: '90 Enrolled, 10 Not enrolled/waived',
+      },
+    ],
+  },
+];
+
+export const benefitPlanYears: BenefitPlanYear[] = [
+  {
+    id: '2026',
+    name: '2026',
+    plans: 8,
+    status: 'Active',
+    duration: '01/01/2026 - 12/31/2026',
+    pending: 0,
+    approved: 0,
+    incomplete: 5,
+    missingInfoCount: 4,
+    nameIsLink: true,
+  },
+  {
+    id: '2025',
+    name: '2025',
+    plans: 6,
+    status: 'Closed',
+    duration: '01/01/2025 - 12/31/2025',
+    pending: 0,
+    approved: 1,
+    incomplete: 9,
+    missingInfoCount: 4,
+  },
+  {
+    id: '2024',
+    name: '2024',
+    plans: 4,
+    status: 'Closed',
+    duration: '05/01/2024 - 05/01/2025',
+    pending: 0,
+    approved: 2,
+    incomplete: 4,
+    missingInfoCount: 4,
+  },
+  {
+    id: '2023',
+    name: '2023',
+    plans: 2,
+    status: 'Closed',
+    duration: '10/28/2023 - 11/03/2024',
+    pending: 0,
+    approved: 0,
+    incomplete: 80,
+    missingInfoCount: 4,
+  },
+];
