@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'plan-year-selected-carriers';
 const CARRIER_PLANS_STORAGE_KEY = 'plan-year-selected-plans-by-carrier';
+const PLAN_YEAR_INCLUDED_PLANS_STORAGE_KEY = 'plan-year-included-plan-ids';
 
 type CarrierSelectionsByYear = Record<string, string[]>;
 
@@ -77,4 +78,38 @@ export function setIncludedPlansForCarrier(planYearId: string, carrierId: string
   const allPlans = readCarrierPlans();
   allPlans[carrierPlansKey(planYearId, carrierId)] = plans;
   writeCarrierPlans(allPlans);
+}
+
+type IncludedPlanIdsByYear = Record<string, string[]>;
+
+function readIncludedPlanIdsByYear(): IncludedPlanIdsByYear {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_INCLUDED_PLANS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as IncludedPlanIdsByYear;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeIncludedPlanIdsByYear(value: IncludedPlanIdsByYear) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_INCLUDED_PLANS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+export function getIncludedPlanIdsForPlanYear(planYearId: string, fallback: string[] = []) {
+  const allIncludedPlanIds = readIncludedPlanIdsByYear();
+  return allIncludedPlanIds[planYearId] ?? fallback;
+}
+
+export function setIncludedPlanIdsForPlanYear(planYearId: string, planIds: string[]) {
+  const allIncludedPlanIds = readIncludedPlanIdsByYear();
+  allIncludedPlanIds[planYearId] = planIds;
+  writeIncludedPlanIdsByYear(allIncludedPlanIds);
 }

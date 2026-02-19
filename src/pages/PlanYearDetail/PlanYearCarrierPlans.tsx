@@ -83,7 +83,6 @@ export function PlanYearCarrierPlans() {
       sidebarActions="plans"
       sidebarNextTo={`/settings/plan-years/${planYearId}/open-enrollment`}
       sidebarNextLabel="Next: Open Enrollment"
-      pageTitle="Edit Plan Year"
     >
       <section className="flex-1 min-h-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
         <div className="flex-1 px-8 py-8">

@@ -28,19 +28,28 @@ export function PlanYearWizardLayout({
   sidebarActions = 'default',
   sidebarNextTo,
   sidebarNextLabel,
-  pageTitle = 'Edit Plan Year',
+  pageTitle,
 }: PlanYearWizardLayoutProps) {
   const navigate = useNavigate();
   const { planYearId } = useParams<{ planYearId: string }>();
   const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
+  const isExistingPlanYear = Boolean(selectedPlanYear);
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
+  const resolvedPageTitle = pageTitle ?? (isExistingPlanYear ? 'Edit Plan Year' : 'Create New Plan Year');
   const activeStepIndex = wizardSteps.findIndex((step) => step.id === activeStep);
 
   return (
     <div className="min-h-full">
       <div className="bg-[var(--surface-neutral-xx-weak)] rounded-[24px] p-6 min-h-[740px]">
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() =>
+            navigate('/settings', {
+              state: {
+                activeNav: 'benefits',
+                benefitsSubTab: 'plan-years',
+              },
+            })
+          }
           className="inline-flex items-center gap-2 text-[13px] font-medium text-[var(--text-neutral-medium)] hover:text-[var(--text-neutral-strong)] mb-4"
         >
           <Icon name="chevron-left" size={12} />
@@ -52,7 +61,7 @@ export function PlanYearWizardLayout({
             className="text-[48px] font-bold text-[var(--color-primary-strong)]"
             style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '58px' }}
           >
-            {pageTitle}
+            {resolvedPageTitle}
           </h1>
           <p
             className="text-[26px] font-semibold text-[var(--text-neutral-medium)]"

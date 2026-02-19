@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '../../components';
+import { benefitPlanYears } from '../../data/settingsData';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 import { getSelectedCarrierIdsForPlanYear, setSelectedCarrierIdsForPlanYear } from './planYearWizardState';
 
@@ -49,9 +50,14 @@ const CARRIER_OPTIONS = [
 export function PlanYearCarriers() {
   const navigate = useNavigate();
   const { planYearId = 'default' } = useParams<{ planYearId: string }>();
+  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
+  const isExistingPlanYear = Boolean(selectedPlanYear);
   const defaultCarrierIds = CARRIER_OPTIONS.map((carrier) => carrier.id);
   const [selectedCarriers, setSelectedCarriers] = useState<Set<string>>(() => {
-    const storedCarrierIds = getSelectedCarrierIdsForPlanYear(planYearId, defaultCarrierIds);
+    const storedCarrierIds = getSelectedCarrierIdsForPlanYear(
+      planYearId,
+      isExistingPlanYear ? defaultCarrierIds : [],
+    );
     return new Set(storedCarrierIds);
   });
 

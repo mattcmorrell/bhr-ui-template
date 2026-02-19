@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../../components';
 import {
   settingsNavItems,
@@ -20,13 +20,92 @@ import {
   benefitPlanGroups,
   benefitPlanYears,
 } from '../../data/settingsData';
+import {
+  getIncludedPlanIdsForPlanYear,
+  getSelectedCarrierIdsForPlanYear,
+  setIncludedPlanIdsForPlanYear,
+  setSelectedCarrierIdsForPlanYear,
+} from '../PlanYearDetail/planYearWizardState';
+
+const PLAN_YEAR_CARRIER_IDS = [
+  'united-healthcare',
+  'delta-dental',
+  'vsp',
+  'aetna',
+  'principal',
+  'fidelity',
+];
+
+const DEFAULT_INCLUDED_PLAN_IDS_BY_YEAR: Record<string, string[]> = {
+  '2026': [
+    'united-medical-bronze',
+    'united-medical-silver',
+    'delta-dental-basic',
+    'vsp-vision-bronze',
+    'aetna-plan-1',
+    'aetna-plan-2',
+    'principal-plan-1',
+    'fidelity-plan-1',
+  ],
+  '2025': [
+    'united-medical-bronze',
+    'united-medical-silver',
+    'delta-dental-basic',
+    'vsp-vision-bronze',
+    'aetna-plan-1',
+    'principal-plan-1',
+  ],
+  '2024': [
+    'united-medical-bronze',
+    'delta-dental-basic',
+    'vsp-vision-bronze',
+    'aetna-plan-1',
+  ],
+  '2023': ['united-medical-bronze', 'delta-dental-basic'],
+};
 
 export function Settings() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState('account');
+  const location = useLocation();
+  const locationState = location.state as { activeNav?: string; benefitsSubTab?: string } | null;
+  const [activeNav, setActiveNav] = useState(locationState?.activeNav ?? 'account');
   const [activeSubTab, setActiveSubTab] = useState('account-info');
-  const [benefitsSubTab, setBenefitsSubTab] = useState('plans');
+  const [benefitsSubTab, setBenefitsSubTab] = useState(locationState?.benefitsSubTab ?? 'plan-years');
+  const [isCreatePlanYearModalOpen, setIsCreatePlanYearModalOpen] = useState(false);
+  const [planYearCreationMode, setPlanYearCreationMode] = useState<'previous' | 'scratch'>('previous');
+  const [selectedSourcePlanYearId, setSelectedSourcePlanYearId] = useState('');
   const selectedNavLabel = settingsNavItems.find((n) => n.id === activeNav)?.label ?? 'Settings';
+
+  const handleContinueCreatePlanYear = () => {
+    const numericPlanYears = benefitPlanYears
+      .map((planYear) => Number.parseInt(planYear.id, 10))
+      .filter((year) => Number.isFinite(year));
+    const latestKnownPlanYear = numericPlanYears.length > 0 ? Math.max(...numericPlanYears) : 2026;
+
+    const sourceYear = Number.parseInt(selectedSourcePlanYearId, 10);
+    const targetYear =
+      planYearCreationMode === 'previous' && Number.isFinite(sourceYear)
+        ? sourceYear + 1
+        : latestKnownPlanYear + 1;
+    const targetPlanYearId = String(targetYear);
+
+    if (planYearCreationMode === 'previous' && selectedSourcePlanYearId) {
+      const sourceIncludedPlans = getIncludedPlanIdsForPlanYear(
+        selectedSourcePlanYearId,
+        DEFAULT_INCLUDED_PLAN_IDS_BY_YEAR[selectedSourcePlanYearId] ?? [],
+      );
+      const sourceSelectedCarriers = getSelectedCarrierIdsForPlanYear(
+        selectedSourcePlanYearId,
+        PLAN_YEAR_CARRIER_IDS,
+      );
+
+      setIncludedPlanIdsForPlanYear(targetPlanYearId, sourceIncludedPlans);
+      setSelectedCarrierIdsForPlanYear(targetPlanYearId, sourceSelectedCarriers);
+    }
+
+    setIsCreatePlanYearModalOpen(false);
+    navigate(`/settings/plan-years/${targetPlanYearId}`);
+  };
 
   return (
     <div className="min-h-full">
@@ -47,7 +126,10 @@ export function Settings() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => {
+                  setActiveNav(item.id);
+                  if (item.id === 'benefits') setBenefitsSubTab('plan-years');
+                }}
                 className={`
                   group flex items-center gap-3 px-4 py-3 w-full rounded-[var(--radius-small)]
                   text-[15px] font-medium transition-colors text-left
@@ -129,7 +211,15 @@ export function Settings() {
                 </h4>
 
                 <div className="flex items-center justify-between mb-6 gap-4">
-                  <button className="inline-flex items-center gap-2 h-10 px-5 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlanYearCreationMode('previous');
+                      setSelectedSourcePlanYearId('');
+                      setIsCreatePlanYearModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-2 h-10 px-5 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]"
+                  >
                     <Icon name="circle-plus" size={14} />
                     New Plan Year
                   </button>
@@ -212,14 +302,11 @@ export function Settings() {
                 </h4>
 
                 <div className="flex items-center justify-between mb-4 gap-4">
-                  <div className="flex items-center gap-3">
-                    <button className="inline-flex items-center gap-2 h-10 px-5 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
-                      <Icon name="arrows-rotate" size={14} />
-                      Renew Plan
-                    </button>
+                  <div className="flex items-center">
                     <button className="inline-flex items-center gap-2 h-10 px-5 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
                       <Icon name="circle-plus" size={14} />
-                      Add Plan
+                      Create New Plan
+                      <Icon name="caret-down" size={11} className="text-[var(--icon-neutral-strong)]" />
                     </button>
                   </div>
 
@@ -713,6 +800,129 @@ export function Settings() {
           )}
         </main>
       </div>
+
+      {isCreatePlanYearModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-[#605b58]/95 flex items-center justify-center p-6"
+          onClick={() => setIsCreatePlanYearModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Create New Plan Year"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[830px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden border border-[var(--border-neutral-x-weak)]"
+          >
+            <header className="h-[84px] px-8 bg-[var(--surface-neutral-xx-weak)] border-b border-[var(--border-neutral-x-weak)] flex items-center justify-between">
+              <h3
+                className="text-[24px] font-semibold text-[var(--color-primary-strong)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+              >
+                Create New Plan Year
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCreatePlanYearModalOpen(false)}
+                className="size-10 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] shadow-[var(--shadow-100)] flex items-center justify-center"
+                aria-label="Close"
+              >
+                <Icon name="xmark" size={16} />
+              </button>
+            </header>
+
+            <div className="px-8 py-8">
+              <h4
+                className="text-center text-[21px] font-semibold text-[var(--text-neutral-x-strong)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '26px' }}
+              >
+                How would you like to create this plan year?
+              </h4>
+
+              <div className="mt-6 grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setPlanYearCreationMode('previous')}
+                  className={`h-[120px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                    planYearCreationMode === 'previous'
+                      ? 'border-[var(--color-primary-medium)]'
+                      : 'border-[var(--border-neutral-x-weak)]'
+                  }`}
+                >
+                  <span className="size-16 rounded-[20px] bg-[var(--color-primary-strong)] text-white flex items-center justify-center">
+                    <Icon name="sparkles" size={24} />
+                  </span>
+                  <span className="text-[16px] font-bold leading-[24px] text-[var(--color-primary-strong)]">
+                    Start with Previous
+                    <br />
+                    Plan Year
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPlanYearCreationMode('scratch')}
+                  className={`h-[120px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                    planYearCreationMode === 'scratch'
+                      ? 'border-[var(--color-primary-medium)]'
+                      : 'border-[var(--border-neutral-x-weak)]'
+                  }`}
+                >
+                  <span className="size-16 rounded-[20px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
+                    <Icon name="grid-2-plus" size={24} />
+                  </span>
+                  <span className="text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
+                    Create Plan Year from
+                    <br />
+                    Scratch
+                  </span>
+                </button>
+              </div>
+
+              {planYearCreationMode === 'previous' && (
+                <div className="mt-8 w-full max-w-[380px] mx-auto">
+                  <label className="block text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)] mb-2">
+                    Select Plan Year:
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedSourcePlanYearId}
+                      onChange={(event) => setSelectedSourcePlanYearId(event.target.value)}
+                      className="w-full h-14 rounded-[12px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] px-4 text-[15px] text-[var(--text-neutral-medium)] appearance-none"
+                    >
+                      <option value="">-Select-</option>
+                      {benefitPlanYears.map((planYear) => (
+                        <option key={planYear.id} value={planYear.id}>
+                          {planYear.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--icon-neutral-weak)]">
+                      <Icon name="caret-down" size={16} />
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <footer className="h-[96px] bg-[var(--surface-neutral-xx-weak)] border-t border-[var(--border-neutral-x-weak)] px-8 flex items-center justify-end gap-6">
+              <button
+                type="button"
+                onClick={() => setIsCreatePlanYearModalOpen(false)}
+                className="h-10 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueCreatePlanYear}
+                className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
+              >
+                Continue
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
