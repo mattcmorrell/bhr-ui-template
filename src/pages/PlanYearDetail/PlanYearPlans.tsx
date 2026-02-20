@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Icon } from '../../components';
+import {
+  defaultIncludedPlanIdsByYear,
+  planYearCarrierOptions,
+  unifiedBenefitPlansByCarrier,
+} from '../../data/benefitPlansCatalog';
 import { benefitPlanYears } from '../../data/settingsData';
 import {
   getCustomPlansForPlanYear,
@@ -10,15 +15,11 @@ import {
 } from './planYearWizardState';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 
-interface CarrierOption {
-  id: string;
-  name: string;
-}
-
 interface PlanOption {
   id: string;
   name: string;
   type: string;
+  effectiveDate: string;
   currentEndDate: string;
   previousPlanYear: string;
 }
@@ -43,146 +44,26 @@ interface PlanVersionDetails {
   attachmentName: string;
 }
 
-const CARRIER_OPTIONS: CarrierOption[] = [
-  { id: 'united-healthcare', name: 'United Healthcare' },
-  { id: 'delta-dental', name: 'Delta Dental' },
-  { id: 'vsp', name: 'VSP' },
-  { id: 'aetna', name: 'Aetna' },
-  { id: 'principal', name: 'Principal' },
-  { id: 'fidelity', name: 'Fidelity' },
-];
-
-const PLAN_OPTIONS_BY_CARRIER: Record<string, PlanOption[]> = {
-  'united-healthcare': [
-    {
-      id: 'united-medical-bronze',
-      name: 'Medical Bronze',
-      type: 'Medical',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'united-medical-silver',
-      name: 'Medical Silver',
-      type: 'Medical',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'united-medical-gold',
-      name: 'Medical Gold',
-      type: 'Medical',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'united-medical-other',
-      name: 'Medical Other',
-      type: 'Medical',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: 'Not Assigned',
-    },
-  ],
-  'delta-dental': [
-    {
-      id: 'delta-dental-basic',
-      name: 'Dental Basic',
-      type: 'Dental',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'delta-dental-premium',
-      name: 'Dental Premium',
-      type: 'Dental',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: 'Not Assigned',
-    },
-  ],
-  'vsp': [
-    {
-      id: 'vsp-vision-bronze',
-      name: 'Vision Bronze',
-      type: 'Vision',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'vsp-vision-silver',
-      name: 'Vision Silver',
-      type: 'Vision',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-  ],
-  aetna: [
-    {
-      id: 'aetna-plan-1',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'aetna-plan-2',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-  ],
-  principal: [
-    {
-      id: 'principal-plan-1',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'principal-plan-2',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-  ],
-  fidelity: [
-    {
-      id: 'fidelity-plan-1',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-    {
-      id: 'fidelity-plan-2',
-      name: '[Plan Name]',
-      type: '[Plan Type]',
-      currentEndDate: '12/31/2025',
-      previousPlanYear: '2025',
-    },
-  ],
-};
-
-const EXISTING_INCLUDED_PLAN_IDS_BY_YEAR: Record<string, string[]> = {
-  '2026': [
-    'united-medical-bronze',
-    'united-medical-silver',
-    'delta-dental-basic',
-    'vsp-vision-bronze',
-    'aetna-plan-1',
-    'aetna-plan-2',
-    'principal-plan-1',
-    'fidelity-plan-1',
-  ],
-};
+const PLAN_OPTIONS_BY_CARRIER: Record<string, PlanOption[]> = Object.fromEntries(
+  Object.entries(unifiedBenefitPlansByCarrier).map(([carrierId, plans]) => [
+    carrierId,
+    plans.map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      type: plan.type,
+      effectiveDate: plan.effectiveDate,
+      currentEndDate: plan.endDate,
+      previousPlanYear: plan.mostRecentPlanYear,
+    })),
+  ]),
+);
 
 export function PlanYearPlans() {
   const navigate = useNavigate();
   const { planYearId = 'default' } = useParams<{ planYearId: string }>();
   const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
   const isExistingPlanYear = Boolean(selectedPlanYear);
+  const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
   const activePlanYears = benefitPlanYears.filter((planYear) => planYear.status === 'Active');
   const defaultPlanVersionId = activePlanYears[0]?.id ?? selectedPlanYear?.id ?? 'current';
 
@@ -193,21 +74,21 @@ export function PlanYearPlans() {
     () =>
       getIncludedPlanIdsForPlanYear(
         planYearId,
-        isExistingPlanYear ? (EXISTING_INCLUDED_PLAN_IDS_BY_YEAR[planYearId] ?? []) : [],
+        isExistingPlanYear ? (defaultIncludedPlanIdsByYear[planYearId] ?? []) : [],
       ),
   );
   const [activePlanDetails, setActivePlanDetails] = useState<PlanOption | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState(defaultPlanVersionId);
 
   const selectedCarrierIds = useMemo(
-    () => getSelectedCarrierIdsForPlanYear(planYearId, CARRIER_OPTIONS.map((carrier) => carrier.id)),
+    () => getSelectedCarrierIdsForPlanYear(planYearId, planYearCarrierOptions.map((carrier) => carrier.id)),
     [planYearId],
   );
   const customPlans = useMemo(() => getCustomPlansForPlanYear(planYearId), [planYearId]);
 
   const groupedPlanOptions = useMemo<CarrierPlansGroup[]>(
     () =>
-      CARRIER_OPTIONS.filter((carrier) => selectedCarrierIds.includes(carrier.id)).map((carrier) => ({
+      planYearCarrierOptions.filter((carrier) => selectedCarrierIds.includes(carrier.id)).map((carrier) => ({
         carrierId: carrier.id,
         carrierName: carrier.name,
         plans: [
@@ -218,6 +99,7 @@ export function PlanYearPlans() {
               id: plan.id,
               name: plan.name,
               type: plan.type,
+              effectiveDate: plan.effectiveDate,
               currentEndDate: plan.endDate,
               previousPlanYear: 'New',
             })),
@@ -379,7 +261,7 @@ export function PlanYearPlans() {
                 className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
                 style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
-                Add All plans offered in {`[Plan Year]`}
+                Add All plans offered in {planYearName}
               </h2>
 
               <div className="mt-12 mb-6 size-[112px] rounded-[12px] border-2 border-[var(--border-neutral-medium)] text-[var(--border-neutral-medium)] flex items-center justify-center">
@@ -390,7 +272,7 @@ export function PlanYearPlans() {
                 className="text-[40px] font-semibold text-[var(--text-neutral-medium)] text-center"
                 style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '48px' }}
               >
-                No Plans Included in {`[Plan Year]`}... Yet
+                No Plans Included in {planYearName}... Yet
               </p>
 
               <div className="mt-6 flex items-center gap-4">
@@ -408,7 +290,7 @@ export function PlanYearPlans() {
                 className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
                 style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
-                Add All plans offered in {`[Plan Year]`}
+                Add All plans offered in {planYearName}
               </h2>
 
               <div className="mt-6 flex items-center justify-between">
@@ -455,7 +337,7 @@ export function PlanYearPlans() {
 
                           <div className="flex-1 flex items-center gap-2 text-[var(--text-neutral-strong)]">
                             <Icon name="calendar" size={16} />
-                            <p className="text-[15px] leading-[22px]">01/01/2026</p>
+                            <p className="text-[15px] leading-[22px]">{plan.effectiveDate}</p>
                           </div>
 
                           <div className="w-[170px] flex items-center justify-end gap-2">

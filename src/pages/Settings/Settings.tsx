@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../../components';
+import { defaultIncludedPlanIdsByYear, planYearCarrierOptions } from '../../data/benefitPlansCatalog';
 import {
   settingsNavItems,
   accountSubTabs,
@@ -26,43 +27,6 @@ import {
   setIncludedPlanIdsForPlanYear,
   setSelectedCarrierIdsForPlanYear,
 } from '../PlanYearDetail/planYearWizardState';
-
-const PLAN_YEAR_CARRIER_IDS = [
-  'united-healthcare',
-  'delta-dental',
-  'vsp',
-  'aetna',
-  'principal',
-  'fidelity',
-];
-
-const DEFAULT_INCLUDED_PLAN_IDS_BY_YEAR: Record<string, string[]> = {
-  '2026': [
-    'united-medical-bronze',
-    'united-medical-silver',
-    'delta-dental-basic',
-    'vsp-vision-bronze',
-    'aetna-plan-1',
-    'aetna-plan-2',
-    'principal-plan-1',
-    'fidelity-plan-1',
-  ],
-  '2025': [
-    'united-medical-bronze',
-    'united-medical-silver',
-    'delta-dental-basic',
-    'vsp-vision-bronze',
-    'aetna-plan-1',
-    'principal-plan-1',
-  ],
-  '2024': [
-    'united-medical-bronze',
-    'delta-dental-basic',
-    'vsp-vision-bronze',
-    'aetna-plan-1',
-  ],
-  '2023': ['united-medical-bronze', 'delta-dental-basic'],
-};
 
 export function Settings() {
   const navigate = useNavigate();
@@ -97,11 +61,11 @@ export function Settings() {
     if (planYearCreationMode === 'existing' && selectedSourcePlanYearId) {
       const sourceIncludedPlans = getIncludedPlanIdsForPlanYear(
         selectedSourcePlanYearId,
-        DEFAULT_INCLUDED_PLAN_IDS_BY_YEAR[selectedSourcePlanYearId] ?? [],
+        defaultIncludedPlanIdsByYear[selectedSourcePlanYearId] ?? [],
       );
       const sourceSelectedCarriers = getSelectedCarrierIdsForPlanYear(
         selectedSourcePlanYearId,
-        PLAN_YEAR_CARRIER_IDS,
+        planYearCarrierOptions.map((carrier) => carrier.id),
       );
 
       setIncludedPlanIdsForPlanYear(targetPlanYearId, sourceIncludedPlans);

@@ -1,4 +1,5 @@
 import type { IconName } from '../components/Icon';
+import { defaultIncludedPlanIdsByYear, sharedSettingsPlanGroups } from './benefitPlansCatalog';
 
 export interface SettingsNavItem {
   id: string;
@@ -324,77 +325,13 @@ export const payrollSettings: PayrollSetting[] = [
   { id: 'garnishments', label: 'Garnishment Rules', value: '2 active configurations', status: 'needs-review' },
 ];
 
-export const benefitPlanGroups: BenefitPlanGroup[] = [
-  {
-    id: 'medical',
-    label: 'Medical',
-    icon: 'heart',
-    plans: [
-      {
-        id: 'medical-1',
-        name: 'Medical Plan Name 1',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-      {
-        id: 'medical-2',
-        name: 'Medical Plan Name 2',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-      {
-        id: 'medical-3',
-        name: 'Medical Plan Name 3',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-    ],
-  },
-  {
-    id: 'dental',
-    label: 'Dental',
-    icon: 'star',
-    plans: [
-      {
-        id: 'dental-1',
-        name: 'Dental Plan Name 1',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-      {
-        id: 'dental-2',
-        name: 'Dental Plan Name 2',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-    ],
-  },
-  {
-    id: 'vision',
-    label: 'Vision',
-    icon: 'eye',
-    plans: [
-      {
-        id: 'vision-1',
-        name: 'Vision Plan Name 1',
-        endDate: '12/31/2026',
-        eligibility: 'Full-Time',
-        status: '90 Enrolled, 10 Not enrolled/waived',
-      },
-    ],
-  },
-];
+export const benefitPlanGroups: BenefitPlanGroup[] = sharedSettingsPlanGroups;
 
 export const benefitPlanYears: BenefitPlanYear[] = [
   {
     id: '2026',
     name: '2026',
-    plans: 8,
+    plans: defaultIncludedPlanIdsByYear['2026'].length,
     status: 'Active',
     duration: '01/01/2026 - 12/31/2026',
     pending: 0,
@@ -406,7 +343,7 @@ export const benefitPlanYears: BenefitPlanYear[] = [
   {
     id: '2025',
     name: '2025',
-    plans: 6,
+    plans: defaultIncludedPlanIdsByYear['2025'].length,
     status: 'Closed',
     duration: '01/01/2025 - 12/31/2025',
     pending: 0,
@@ -417,7 +354,7 @@ export const benefitPlanYears: BenefitPlanYear[] = [
   {
     id: '2024',
     name: '2024',
-    plans: 4,
+    plans: defaultIncludedPlanIdsByYear['2024'].length,
     status: 'Closed',
     duration: '05/01/2024 - 05/01/2025',
     pending: 0,
@@ -428,7 +365,7 @@ export const benefitPlanYears: BenefitPlanYear[] = [
   {
     id: '2023',
     name: '2023',
-    plans: 2,
+    plans: defaultIncludedPlanIdsByYear['2023'].length,
     status: 'Closed',
     duration: '10/28/2023 - 11/03/2024',
     pending: 0,

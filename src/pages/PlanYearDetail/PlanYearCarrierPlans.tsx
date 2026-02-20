@@ -1,22 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Icon } from '../../components';
+import {
+  defaultIncludedPlanIdsByYear,
+  planYearCarrierOptions,
+  unifiedBenefitPlansByCarrier,
+} from '../../data/benefitPlansCatalog';
 import { benefitPlanYears } from '../../data/settingsData';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 import {
+  getIncludedPlanIdsForPlanYear,
   getIncludedPlansForCarrier,
   setIncludedPlansForCarrier,
   type IncludedCarrierPlan,
 } from './planYearWizardState';
-
-const CARRIER_OPTIONS = [
-  { id: 'united-healthcare', name: 'UnitedHealthcare' },
-  { id: 'delta-dental', name: 'Delta Dental' },
-  { id: 'vsp', name: 'VSP' },
-  { id: 'aetna', name: 'Aetna' },
-  { id: 'principal', name: 'Principal' },
-  { id: 'fidelity', name: 'Fidelity' },
-];
 
 function fallbackCarrierName(carrierId?: string) {
   if (!carrierId) return 'Carrier';
@@ -33,23 +30,45 @@ export function PlanYearCarrierPlans() {
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
 
   const carrierName = useMemo(() => {
-    return CARRIER_OPTIONS.find((carrier) => carrier.id === carrierId)?.name ?? fallbackCarrierName(carrierId);
+    return planYearCarrierOptions.find((carrier) => carrier.id === carrierId)?.name ?? fallbackCarrierName(carrierId);
   }, [carrierId]);
   const carrierKey = carrierId ?? 'carrier';
-  const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
-  const [includedPlans, setIncludedPlans] = useState<IncludedCarrierPlan[]>(() =>
-    getIncludedPlansForCarrier(planYearId, carrierKey),
+  const carrierPlansFromCatalog = useMemo(
+    () => unifiedBenefitPlansByCarrier[carrierKey] ?? [],
+    [carrierKey],
   );
+  const defaultIncludedPlansForCarrier = useMemo(() => {
+    const includedPlanIds = getIncludedPlanIdsForPlanYear(
+      planYearId,
+      defaultIncludedPlanIdsByYear[planYearId] ?? [],
+    );
+    return carrierPlansFromCatalog
+      .filter((plan) => includedPlanIds.includes(plan.id))
+      .map(
+        (plan): IncludedCarrierPlan => ({
+          name: plan.name,
+          type: plan.type,
+          effectiveDate: plan.effectiveDate,
+        }),
+      );
+  }, [carrierPlansFromCatalog, planYearId]);
+
+  const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
+  const [includedPlans, setIncludedPlans] = useState<IncludedCarrierPlan[]>(() => {
+    const plansFromState = getIncludedPlansForCarrier(planYearId, carrierKey);
+    return plansFromState.length > 0 ? plansFromState : defaultIncludedPlansForCarrier;
+  });
   const [selectedPlanNames, setSelectedPlanNames] = useState<string[]>(() =>
     getIncludedPlansForCarrier(planYearId, carrierKey).map((plan) => plan.name),
   );
 
-  const availablePlans = [
-    { name: 'Medical Bronze', type: 'Medical', mostRecentPlanYear: '2025', effectiveDate: '01/01/2026' },
-    { name: 'Medical Silver', type: 'Medical', mostRecentPlanYear: '2025', effectiveDate: '01/01/2026' },
-    { name: 'Medical Gold', type: 'Medical', mostRecentPlanYear: '2025', effectiveDate: '01/01/2026' },
-    { name: 'Medical Other', type: 'Medical', mostRecentPlanYear: 'Not Assigned', effectiveDate: '01/01/2026' },
-  ];
+  const availablePlans = carrierPlansFromCatalog.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    type: plan.type,
+    mostRecentPlanYear: plan.mostRecentPlanYear,
+    effectiveDate: plan.effectiveDate,
+  }));
   const availablePlansToAdd = availablePlans.filter(
     (plan) => !includedPlans.some((includedPlan) => includedPlan.name === plan.name),
   );
