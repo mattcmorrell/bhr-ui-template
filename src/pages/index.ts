@@ -11,6 +11,8 @@ export { PlanYearDetail } from './PlanYearDetail';
 export { PlanYearCarriers } from './PlanYearDetail';
 export { PlanYearPlans } from './PlanYearDetail';
 export { PlanYearCarrierPlans } from './PlanYearDetail';
+export { PlanYearCreatePlan } from './PlanYearDetail';
+export { PlanYearEditPlan } from './PlanYearDetail';
 export { PlanYearRenewPlan } from './PlanYearDetail';
 export { PlanYearOpenEnrollment } from './PlanYearDetail';
 export { PlanYearNewHires } from './PlanYearDetail';

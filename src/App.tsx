@@ -14,6 +14,8 @@ import {
   PlanYearCarriers,
   PlanYearPlans,
   PlanYearCarrierPlans,
+  PlanYearCreatePlan,
+  PlanYearEditPlan,
   PlanYearRenewPlan,
   PlanYearOpenEnrollment,
   PlanYearNewHires,
@@ -71,6 +73,12 @@ function App() {
                   <Route path="/settings/plan-years/:planYearId/carriers" element={<PlanYearCarriers />} />
                   <Route path="/settings/plan-years/:planYearId/plans" element={<PlanYearPlans />} />
                   <Route path="/settings/plan-years/:planYearId/plans/:carrierId" element={<PlanYearCarrierPlans />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/:stepId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/carrier/:carrierId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/carrier/:carrierId/:stepId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/edit/:planRef" element={<PlanYearEditPlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/edit/:planRef/:stepId" element={<PlanYearEditPlan />} />
                   <Route path="/settings/plan-years/:planYearId/plans/:planSlug/renew/:stepId?" element={<PlanYearRenewPlan />} />
                   <Route path="/settings/plan-years/:planYearId/open-enrollment" element={<PlanYearOpenEnrollment />} />
                   <Route path="/settings/plan-years/:planYearId/new-hires" element={<PlanYearNewHires />} />

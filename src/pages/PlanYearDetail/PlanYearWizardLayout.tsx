@@ -8,32 +8,27 @@ type WizardStep = 'details' | 'carriers' | 'plans' | 'open-enrollment' | 'new-hi
 interface PlanYearWizardLayoutProps {
   activeStep: WizardStep;
   children: ReactNode;
-  sidebarActions?: 'default' | 'plans';
-  sidebarNextTo?: string;
-  sidebarNextLabel?: string;
   pageTitle?: string;
 }
 
 const wizardSteps: Array<{ id: WizardStep; label: string; suffix: string }> = [
-  { id: 'details', label: 'Details', suffix: '' },
+  { id: 'details', label: 'Plan Year Basics', suffix: '' },
   { id: 'carriers', label: 'Carriers', suffix: '/carriers' },
   { id: 'plans', label: 'Plans', suffix: '/plans' },
   { id: 'open-enrollment', label: 'Open Enrollment', suffix: '/open-enrollment' },
-  { id: 'new-hires', label: 'New Hires', suffix: '/new-hires' },
+  { id: 'new-hires', label: 'New Hire Enrollment', suffix: '/new-hires' },
 ];
 
 export function PlanYearWizardLayout({
   activeStep,
   children,
-  sidebarActions = 'default',
-  sidebarNextTo,
-  sidebarNextLabel,
   pageTitle,
 }: PlanYearWizardLayoutProps) {
   const navigate = useNavigate();
   const { planYearId } = useParams<{ planYearId: string }>();
   const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
   const isExistingPlanYear = Boolean(selectedPlanYear);
+  const isEditFlow = isExistingPlanYear;
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
   const resolvedPageTitle = pageTitle ?? (isExistingPlanYear ? 'Edit Plan Year' : 'Create New Plan Year');
   const activeStepIndex = wizardSteps.findIndex((step) => step.id === activeStep);
@@ -75,7 +70,7 @@ export function PlanYearWizardLayout({
           <aside className="w-[304px] shrink-0">
             <div className="space-y-2">
               {wizardSteps.map((step, index) => {
-                const isComplete = index < activeStepIndex;
+                const isComplete = isEditFlow || index < activeStepIndex;
                 const isActive = index === activeStepIndex;
 
                 return (
@@ -90,18 +85,24 @@ export function PlanYearWizardLayout({
                       {isComplete && (
                         <Icon name="check-circle" size={24} className="text-[var(--color-primary-strong)]" />
                       )}
-                      {isActive && <Icon name="circle" variant="regular" size={22} className="text-[var(--color-primary-strong)]" />}
+                      {isActive && !isComplete && (
+                        <Icon name="circle" variant="regular" size={22} className="text-[var(--color-primary-strong)]" />
+                      )}
                       {!isActive && !isComplete && (
                         <Icon name="circle" variant="regular" size={22} className="text-[var(--text-neutral-strong)]" />
                       )}
                     </span>
                     <span
                       className={`text-[16px] leading-[24px] ${
-                        isActive
-                          ? 'font-bold text-[var(--color-primary-strong)]'
-                          : isComplete
-                            ? 'font-medium text-[var(--color-primary-strong)]'
-                            : 'font-medium text-[var(--text-neutral-strong)]'
+                        isEditFlow
+                          ? isActive
+                            ? 'font-bold text-[var(--color-primary-strong)]'
+                            : 'font-medium text-[var(--color-primary-strong)]'
+                          : isActive
+                            ? 'font-bold text-[var(--color-primary-strong)]'
+                            : isComplete
+                              ? 'font-medium text-[var(--color-primary-strong)]'
+                              : 'font-medium text-[var(--text-neutral-strong)]'
                       }`}
                     >
                       {step.label}
@@ -113,29 +114,12 @@ export function PlanYearWizardLayout({
 
             <div className="h-px bg-[var(--border-neutral-x-weak)] my-7 mx-6" />
 
-            {sidebarActions === 'plans' ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate(sidebarNextTo ?? `/settings/plan-years/${planYearId}/new-hires`)}
-                  className="w-full h-10 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-[15px] font-semibold text-white"
-                >
-                  {sidebarNextLabel ?? 'Next: New Hires'}
-                </button>
-                <button className="w-full h-10 mt-2 rounded-[var(--radius-full)] text-[15px] font-semibold text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-white)]">
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <button className="w-full h-10 rounded-[var(--radius-full)] bg-[var(--surface-neutral-x-weak)] text-[15px] font-semibold text-[var(--text-neutral-medium)]">
-                  Save & Finish Later
-                </button>
-                <button className="w-full h-10 mt-4 text-[15px] font-semibold text-[#0b4fd1]">
-                  Cancel
-                </button>
-              </>
-            )}
+            <button className="w-full h-10 rounded-[var(--radius-full)] bg-[var(--surface-neutral-x-weak)] text-[15px] font-semibold text-[var(--text-neutral-medium)]">
+              Save & Finish Later
+            </button>
+            <button className="w-full h-10 mt-4 text-[15px] font-semibold text-[#0b4fd1]">
+              Cancel
+            </button>
           </aside>
 
           {children}

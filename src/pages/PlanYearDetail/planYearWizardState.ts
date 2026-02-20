@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'plan-year-selected-carriers';
 const CARRIER_PLANS_STORAGE_KEY = 'plan-year-selected-plans-by-carrier';
 const PLAN_YEAR_INCLUDED_PLANS_STORAGE_KEY = 'plan-year-included-plan-ids';
+const PLAN_YEAR_CUSTOM_PLANS_STORAGE_KEY = 'plan-year-custom-plans';
 
 type CarrierSelectionsByYear = Record<string, string[]>;
 
@@ -112,4 +113,50 @@ export function setIncludedPlanIdsForPlanYear(planYearId: string, planIds: strin
   const allIncludedPlanIds = readIncludedPlanIdsByYear();
   allIncludedPlanIds[planYearId] = planIds;
   writeIncludedPlanIdsByYear(allIncludedPlanIds);
+}
+
+export interface PlanYearCustomPlan {
+  id: string;
+  carrierId: string;
+  name: string;
+  type: string;
+  effectiveDate: string;
+  endDate: string;
+  summary: string;
+  status: 'Active' | 'Inactive';
+}
+
+type CustomPlansByYear = Record<string, PlanYearCustomPlan[]>;
+
+function readCustomPlansByYear(): CustomPlansByYear {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_CUSTOM_PLANS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as CustomPlansByYear;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCustomPlansByYear(value: CustomPlansByYear) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_CUSTOM_PLANS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+export function getCustomPlansForPlanYear(planYearId: string) {
+  const allCustomPlansByYear = readCustomPlansByYear();
+  return allCustomPlansByYear[planYearId] ?? [];
+}
+
+export function addCustomPlanForPlanYear(planYearId: string, plan: PlanYearCustomPlan) {
+  const allCustomPlansByYear = readCustomPlansByYear();
+  const currentPlans = allCustomPlansByYear[planYearId] ?? [];
+  allCustomPlansByYear[planYearId] = [...currentPlans, plan];
+  writeCustomPlansByYear(allCustomPlansByYear);
 }

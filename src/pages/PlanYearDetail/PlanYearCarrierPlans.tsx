@@ -50,6 +50,11 @@ export function PlanYearCarrierPlans() {
     { name: 'Medical Gold', type: 'Medical', mostRecentPlanYear: '2025', effectiveDate: '01/01/2026' },
     { name: 'Medical Other', type: 'Medical', mostRecentPlanYear: 'Not Assigned', effectiveDate: '01/01/2026' },
   ];
+  const availablePlansToAdd = availablePlans.filter(
+    (plan) => !includedPlans.some((includedPlan) => includedPlan.name === plan.name),
+  );
+  const allAvailableSelected =
+    availablePlansToAdd.length > 0 && selectedPlanNames.length === availablePlansToAdd.length;
 
   const togglePlan = (planName: string) => {
     setSelectedPlanNames((prev) => {
@@ -59,18 +64,34 @@ export function PlanYearCarrierPlans() {
   };
 
   const openAddExistingPlans = () => {
-    setSelectedPlanNames(includedPlans.map((plan) => plan.name));
+    setSelectedPlanNames([]);
     setIsAddExistingPlansOpen(true);
   };
 
+  const openCreatePlan = () => {
+    navigate(`/settings/plan-years/${planYearId}/plans/create/carrier/${carrierKey}`);
+  };
+
+  const openEditPlan = (planName: string, planType: string) => {
+    const params = new URLSearchParams({
+      name: planName,
+      type: planType,
+      carrierId: carrierKey,
+    });
+    navigate(
+      `/settings/plan-years/${planYearId}/plans/edit/${encodeURIComponent(planName)}?${params.toString()}`,
+    );
+  };
+
   const handleAddSelectedPlans = () => {
-    const nextIncludedPlans: IncludedCarrierPlan[] = availablePlans
+    const selectedPlansToAdd: IncludedCarrierPlan[] = availablePlansToAdd
       .filter((plan) => selectedPlanNames.includes(plan.name))
       .map((plan) => ({
         name: plan.name,
         type: plan.type,
         effectiveDate: plan.effectiveDate,
       }));
+    const nextIncludedPlans: IncludedCarrierPlan[] = [...includedPlans, ...selectedPlansToAdd];
 
     setIncludedPlans(nextIncludedPlans);
     setIncludedPlansForCarrier(planYearId, carrierKey, nextIncludedPlans);
@@ -78,19 +99,14 @@ export function PlanYearCarrierPlans() {
   };
 
   return (
-    <PlanYearWizardLayout
-      activeStep="plans"
-      sidebarActions="plans"
-      sidebarNextTo={`/settings/plan-years/${planYearId}/open-enrollment`}
-      sidebarNextLabel="Next: Open Enrollment"
-    >
+    <PlanYearWizardLayout activeStep="plans">
       <section className="flex-1 min-h-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
         <div className="flex-1 px-8 py-8">
           {includedPlans.length === 0 ? (
             <div className="h-full rounded-[16px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] px-8 py-8 flex flex-col items-center text-center">
               <h2
-                className="text-[24px] font-semibold text-[var(--text-neutral-xx-strong)]"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
                 Add All plans offered in {planYearName} by {carrierName}
               </h2>
@@ -110,7 +126,7 @@ export function PlanYearCarrierPlans() {
                 <Button variant="primary" size="medium" icon="chevron-right" onClick={openAddExistingPlans}>
                   Add Existing Plans
                 </Button>
-                <Button variant="standard" size="medium" icon="circle-plus-lined" showCaret>
+                <Button variant="standard" size="medium" icon="circle-plus-lined" showCaret onClick={openCreatePlan}>
                   Create New Plan
                 </Button>
               </div>
@@ -118,8 +134,8 @@ export function PlanYearCarrierPlans() {
           ) : (
             <div className="h-full rounded-[16px] bg-[var(--surface-neutral-white)] px-6 py-6">
               <h2
-                className="text-[24px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
                 Add All plans offered in {planYearName} by {carrierName}
               </h2>
@@ -130,7 +146,7 @@ export function PlanYearCarrierPlans() {
                   <Button variant="outlined" size="small" icon="chevron-right" onClick={openAddExistingPlans}>
                     Add Existing
                   </Button>
-                  <Button variant="standard" size="small" icon="circle-plus-lined">
+                  <Button variant="standard" size="small" icon="circle-plus-lined" onClick={openCreatePlan}>
                     Create New
                   </Button>
                 </div>
@@ -157,7 +173,12 @@ export function PlanYearCarrierPlans() {
                       <p className="text-[15px] leading-[22px]">{plan.effectiveDate}</p>
                     </div>
                     <div className="w-[180px] flex items-center gap-2">
-                      <Button variant="standard" size="small" icon="pen">
+                      <Button
+                        variant="standard"
+                        size="small"
+                        icon="pen"
+                        onClick={() => openEditPlan(plan.name, plan.type)}
+                      >
                         Edit Plan
                       </Button>
                       <button
@@ -255,9 +276,11 @@ export function PlanYearCarrierPlans() {
                     <div className="w-[32px] shrink-0 flex justify-center">
                       <input
                         type="checkbox"
-                        checked={selectedPlanNames.length === availablePlans.length}
+                        checked={allAvailableSelected}
                         onChange={(event) =>
-                          setSelectedPlanNames(event.target.checked ? availablePlans.map((plan) => plan.name) : [])
+                          setSelectedPlanNames(
+                            event.target.checked ? availablePlansToAdd.map((plan) => plan.name) : [],
+                          )
                         }
                         className="size-[18px] rounded-[6px] border border-[var(--border-neutral-medium)] accent-[var(--color-primary-strong)]"
                       />
@@ -267,7 +290,7 @@ export function PlanYearCarrierPlans() {
                     <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Most Recent Plan Year</p>
                   </div>
 
-                  {availablePlans.map((plan) => (
+                  {availablePlansToAdd.map((plan) => (
                     <div key={plan.name} className="h-[68px] border-b border-[var(--border-neutral-xx-weak)] px-4 flex items-center">
                       <div className="w-[32px] shrink-0 flex justify-center">
                         <input
@@ -282,6 +305,13 @@ export function PlanYearCarrierPlans() {
                       <p className="flex-1 text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)]">{plan.mostRecentPlanYear}</p>
                     </div>
                   ))}
+                  {availablePlansToAdd.length === 0 && (
+                    <div className="h-[120px] border-b border-[var(--border-neutral-xx-weak)] px-4 flex items-center justify-center">
+                      <p className="text-[15px] leading-[22px] text-[var(--text-neutral-medium)]">
+                        All available plans are already included in this plan year.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -72,8 +72,13 @@ export function Settings() {
   const [activeSubTab, setActiveSubTab] = useState('account-info');
   const [benefitsSubTab, setBenefitsSubTab] = useState(locationState?.benefitsSubTab ?? 'plan-years');
   const [isCreatePlanYearModalOpen, setIsCreatePlanYearModalOpen] = useState(false);
-  const [planYearCreationMode, setPlanYearCreationMode] = useState<'previous' | 'scratch'>('previous');
+  const [planYearCreationMode, setPlanYearCreationMode] = useState<'existing' | 'scratch'>('existing');
   const [selectedSourcePlanYearId, setSelectedSourcePlanYearId] = useState('');
+  const [isRenewPlanModalOpen, setIsRenewPlanModalOpen] = useState(false);
+  const activeBenefitPlanYears = benefitPlanYears.filter((planYear) => planYear.status === 'Active');
+  const defaultRenewPlanYearId = activeBenefitPlanYears[0]?.id ?? '';
+  const [selectedRenewOption, setSelectedRenewOption] = useState<string>(defaultRenewPlanYearId || 'new');
+  const [renewingPlanName, setRenewingPlanName] = useState('');
   const selectedNavLabel = settingsNavItems.find((n) => n.id === activeNav)?.label ?? 'Settings';
 
   const handleContinueCreatePlanYear = () => {
@@ -84,12 +89,12 @@ export function Settings() {
 
     const sourceYear = Number.parseInt(selectedSourcePlanYearId, 10);
     const targetYear =
-      planYearCreationMode === 'previous' && Number.isFinite(sourceYear)
+      planYearCreationMode === 'existing' && Number.isFinite(sourceYear)
         ? sourceYear + 1
         : latestKnownPlanYear + 1;
     const targetPlanYearId = String(targetYear);
 
-    if (planYearCreationMode === 'previous' && selectedSourcePlanYearId) {
+    if (planYearCreationMode === 'existing' && selectedSourcePlanYearId) {
       const sourceIncludedPlans = getIncludedPlanIdsForPlanYear(
         selectedSourcePlanYearId,
         DEFAULT_INCLUDED_PLAN_IDS_BY_YEAR[selectedSourcePlanYearId] ?? [],
@@ -105,6 +110,20 @@ export function Settings() {
 
     setIsCreatePlanYearModalOpen(false);
     navigate(`/settings/plan-years/${targetPlanYearId}`);
+  };
+
+  const handleContinueRenewPlan = () => {
+    if (selectedRenewOption === 'new') {
+      if (planYearCreationMode === 'existing' && !selectedSourcePlanYearId) {
+        return;
+      }
+      setIsRenewPlanModalOpen(false);
+      handleContinueCreatePlanYear();
+      return;
+    }
+
+    setIsRenewPlanModalOpen(false);
+    navigate(`/settings/plan-years/${selectedRenewOption}/plans`);
   };
 
   return (
@@ -214,7 +233,7 @@ export function Settings() {
                   <button
                     type="button"
                     onClick={() => {
-                      setPlanYearCreationMode('previous');
+                      setPlanYearCreationMode('existing');
                       setSelectedSourcePlanYearId('');
                       setIsCreatePlanYearModalOpen(true);
                     }}
@@ -345,9 +364,24 @@ export function Settings() {
                             <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.eligibility}</span>
                             <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.status}</span>
                             <div className="flex items-center justify-end gap-[6px]">
-                              <button className="w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
-                                <Icon name="arrows-rotate" size={13} />
-                              </button>
+                              <div className="relative">
+                                <button
+                                  aria-label="renew plan"
+                                  onClick={() => {
+                                    setRenewingPlanName(plan.name);
+                                    setSelectedRenewOption(defaultRenewPlanYearId || 'new');
+                                    setPlanYearCreationMode('existing');
+                                    setSelectedSourcePlanYearId('');
+                                    setIsRenewPlanModalOpen(true);
+                                  }}
+                                  className="peer w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+                                >
+                                  <Icon name="arrows-rotate" size={13} />
+                                </button>
+                                <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[8px] bg-[var(--text-neutral-x-strong)] text-white text-[12px] leading-[16px] whitespace-nowrap opacity-0 transition-opacity peer-hover:opacity-100">
+                                  renew plan
+                                </span>
+                              </div>
                               <button className="w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
                                 <Icon name="pen-to-square" size={13} />
                               </button>
@@ -841,9 +875,9 @@ export function Settings() {
               <div className="mt-6 grid grid-cols-2 gap-4">
                 <button
                   type="button"
-                  onClick={() => setPlanYearCreationMode('previous')}
+                  onClick={() => setPlanYearCreationMode('existing')}
                   className={`h-[120px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
-                    planYearCreationMode === 'previous'
+                    planYearCreationMode === 'existing'
                       ? 'border-[var(--color-primary-medium)]'
                       : 'border-[var(--border-neutral-x-weak)]'
                   }`}
@@ -878,7 +912,7 @@ export function Settings() {
                 </button>
               </div>
 
-              {planYearCreationMode === 'previous' && (
+              {planYearCreationMode === 'existing' && (
                 <div className="mt-8 w-full max-w-[380px] mx-auto">
                   <label className="block text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)] mb-2">
                     Select Plan Year:
@@ -916,6 +950,193 @@ export function Settings() {
                 type="button"
                 onClick={handleContinueCreatePlanYear}
                 className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
+              >
+                Continue
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {isRenewPlanModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-[#605b58]/95 flex items-center justify-center p-6"
+          onClick={() => setIsRenewPlanModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Renew Plan ${renewingPlanName}`}
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[830px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden border border-[var(--border-neutral-x-weak)]"
+          >
+            <header className="px-5 py-4 bg-[var(--surface-neutral-xx-weak)] border-b border-[var(--border-neutral-x-weak)] flex items-center justify-between">
+              <div className="flex flex-1 items-center justify-between pr-4">
+                <h3
+                  className="text-[24px] font-semibold text-[var(--color-primary-strong)]"
+                  style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                >
+                  Renew Plan
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRenewPlanModalOpen(false)}
+                className="size-10 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] shadow-[var(--shadow-100)] flex items-center justify-center"
+                aria-label="Close"
+              >
+                <Icon name="xmark" size={16} />
+              </button>
+            </header>
+
+            <div className="px-5 py-8">
+              <h4
+                className="text-center text-[21px] font-semibold text-[var(--text-neutral-x-strong)] mb-2"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '26px' }}
+              >
+                Renewing this plan for next year? Nice!
+              </h4>
+              <p className="text-center text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] mb-6">
+                Which plan year should it be included in?
+              </p>
+
+              <div className="max-w-[920px] mx-auto space-y-4">
+                {activeBenefitPlanYears.map((planYear) => (
+                  <button
+                    key={planYear.id}
+                    type="button"
+                    onClick={() => setSelectedRenewOption(planYear.id)}
+                    className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                      selectedRenewOption === planYear.id
+                        ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
+                        : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
+                    }`}
+                  >
+                    <span className="size-14 rounded-[18px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
+                      <Icon name="calendar" size={26} />
+                    </span>
+                    <span>
+                      <span className="block text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
+                        {planYear.name}
+                      </span>
+                      <span className="block mt-1 text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
+                        {planYear.duration}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRenewOption('new')}
+                  className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                    selectedRenewOption === 'new'
+                      ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
+                      : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
+                  }`}
+                >
+                  <span
+                    className={`size-14 rounded-[18px] flex items-center justify-center ${
+                      selectedRenewOption === 'new'
+                        ? 'bg-[var(--color-primary-strong)] text-white'
+                        : 'bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)]'
+                    }`}
+                  >
+                    <Icon name="circle-plus-lined" size={26} />
+                  </span>
+                  <span className="text-[16px] font-semibold leading-[24px] text-[var(--color-primary-strong)]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                    Create New Plan Year
+                  </span>
+                </button>
+
+                {selectedRenewOption === 'new' && (
+                  <div className="pt-1">
+                    <p className="text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)] mb-3">
+                      How would you like to create this plan year?
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setPlanYearCreationMode('existing')}
+                        className={`h-[104px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                          planYearCreationMode === 'existing'
+                            ? 'border-[var(--color-primary-medium)]'
+                            : 'border-[var(--border-neutral-x-weak)]'
+                        }`}
+                      >
+                        <span className="size-12 rounded-[14px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
+                          <Icon name="sparkles" size={20} />
+                        </span>
+                        <span className="text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                          Start with Existing
+                          <br />
+                          Plan Year
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPlanYearCreationMode('scratch')}
+                        className={`h-[104px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                          planYearCreationMode === 'scratch'
+                            ? 'border-[var(--color-primary-medium)]'
+                            : 'border-[var(--border-neutral-x-weak)]'
+                        }`}
+                      >
+                        <span className="size-12 rounded-[14px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
+                          <Icon name="grid-2-plus" size={20} />
+                        </span>
+                        <span className="text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                          Create Plan Year
+                          <br />
+                          from Scratch
+                        </span>
+                      </button>
+                    </div>
+
+                    {planYearCreationMode === 'existing' && (
+                      <div className="mt-6 w-full max-w-[460px]">
+                        <label className="block text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)] mb-2">
+                          Select Plan Year:
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={selectedSourcePlanYearId}
+                            onChange={(event) => setSelectedSourcePlanYearId(event.target.value)}
+                            className="w-full h-14 rounded-[12px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] px-4 pr-16 text-[15px] text-[var(--text-neutral-medium)] appearance-none"
+                            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                          >
+                            <option value="">-Select-</option>
+                            {benefitPlanYears.map((planYear) => (
+                              <option key={planYear.id} value={planYear.id}>
+                                {planYear.name}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="pointer-events-none absolute right-0 top-0 h-full w-[56px] border-l border-[var(--border-neutral-x-weak)] flex items-center justify-center text-[var(--icon-neutral-weak)]">
+                            <Icon name="caret-down" size={16} />
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <footer className="bg-[var(--surface-neutral-xx-weak)] border-t border-[var(--border-neutral-x-weak)] px-5 py-4 flex items-center justify-end gap-6">
+              <button
+                type="button"
+                onClick={() => setIsRenewPlanModalOpen(false)}
+                className="h-10 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueRenewPlan}
+                disabled={selectedRenewOption === 'new' && planYearCreationMode === 'existing' && !selectedSourcePlanYearId}
+                className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Continue
               </button>

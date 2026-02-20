@@ -2,7 +2,12 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Icon } from '../../components';
 import { benefitPlanYears } from '../../data/settingsData';
-import { getIncludedPlanIdsForPlanYear, getSelectedCarrierIdsForPlanYear, setIncludedPlanIdsForPlanYear } from './planYearWizardState';
+import {
+  getCustomPlansForPlanYear,
+  getIncludedPlanIdsForPlanYear,
+  getSelectedCarrierIdsForPlanYear,
+  setIncludedPlanIdsForPlanYear,
+} from './planYearWizardState';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 
 interface CarrierOption {
@@ -178,6 +183,8 @@ export function PlanYearPlans() {
   const { planYearId = 'default' } = useParams<{ planYearId: string }>();
   const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
   const isExistingPlanYear = Boolean(selectedPlanYear);
+  const activePlanYears = benefitPlanYears.filter((planYear) => planYear.status === 'Active');
+  const defaultPlanVersionId = activePlanYears[0]?.id ?? selectedPlanYear?.id ?? 'current';
 
   const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
   const [isPlanDetailsOpen, setIsPlanDetailsOpen] = useState(false);
@@ -190,26 +197,44 @@ export function PlanYearPlans() {
       ),
   );
   const [activePlanDetails, setActivePlanDetails] = useState<PlanOption | null>(null);
-  const [selectedVersionId, setSelectedVersionId] = useState('2026');
+  const [selectedVersionId, setSelectedVersionId] = useState(defaultPlanVersionId);
 
   const selectedCarrierIds = useMemo(
     () => getSelectedCarrierIdsForPlanYear(planYearId, CARRIER_OPTIONS.map((carrier) => carrier.id)),
     [planYearId],
   );
+  const customPlans = useMemo(() => getCustomPlansForPlanYear(planYearId), [planYearId]);
 
   const groupedPlanOptions = useMemo<CarrierPlansGroup[]>(
     () =>
       CARRIER_OPTIONS.filter((carrier) => selectedCarrierIds.includes(carrier.id)).map((carrier) => ({
         carrierId: carrier.id,
         carrierName: carrier.name,
-        plans: PLAN_OPTIONS_BY_CARRIER[carrier.id] ?? [],
+        plans: [
+          ...(PLAN_OPTIONS_BY_CARRIER[carrier.id] ?? []),
+          ...customPlans
+            .filter((plan) => plan.carrierId === carrier.id)
+            .map((plan) => ({
+              id: plan.id,
+              name: plan.name,
+              type: plan.type,
+              currentEndDate: plan.endDate,
+              previousPlanYear: 'New',
+            })),
+        ],
       })),
-    [selectedCarrierIds],
+    [customPlans, selectedCarrierIds],
   );
 
   const allSelectablePlanIds = useMemo(
-    () => groupedPlanOptions.flatMap((group) => group.plans.map((plan) => plan.id)),
-    [groupedPlanOptions],
+    () =>
+      groupedPlanOptions
+        .map((group) => ({
+          ...group,
+          plans: group.plans.filter((plan) => !includedPlanIds.includes(plan.id)),
+        }))
+        .flatMap((group) => group.plans.map((plan) => plan.id)),
+    [groupedPlanOptions, includedPlanIds],
   );
 
   const includedGroups = useMemo(
@@ -218,6 +243,16 @@ export function PlanYearPlans() {
         .map((group) => ({
           ...group,
           plans: group.plans.filter((plan) => includedPlanIds.includes(plan.id)),
+        }))
+        .filter((group) => group.plans.length > 0),
+    [groupedPlanOptions, includedPlanIds],
+  );
+  const availableGroups = useMemo(
+    () =>
+      groupedPlanOptions
+        .map((group) => ({
+          ...group,
+          plans: group.plans.filter((plan) => !includedPlanIds.includes(plan.id)),
         }))
         .filter((group) => group.plans.length > 0),
     [groupedPlanOptions, includedPlanIds],
@@ -247,7 +282,7 @@ export function PlanYearPlans() {
   };
 
   const openAddExistingPlans = () => {
-    setSelectedPlanIds(includedPlanIds);
+    setSelectedPlanIds([]);
     setIsAddExistingPlansOpen(true);
   };
 
@@ -255,16 +290,30 @@ export function PlanYearPlans() {
     setIsAddExistingPlansOpen(false);
   };
 
+  const openCreatePlan = () => {
+    navigate(`/settings/plan-years/${planYearId}/plans/create`);
+  };
+
+  const openEditPlan = (plan: PlanOption, carrierId: string) => {
+    const params = new URLSearchParams({
+      name: plan.name,
+      type: plan.type,
+      carrierId,
+    });
+    navigate(`/settings/plan-years/${planYearId}/plans/edit/${encodeURIComponent(plan.id)}?${params.toString()}`);
+  };
+
   const addSelectedPlans = () => {
     if (selectedCount === 0) return;
-    setIncludedPlanIds(selectedPlanIds);
-    setIncludedPlanIdsForPlanYear(planYearId, selectedPlanIds);
+    const nextIncludedPlanIds = Array.from(new Set([...includedPlanIds, ...selectedPlanIds]));
+    setIncludedPlanIds(nextIncludedPlanIds);
+    setIncludedPlanIdsForPlanYear(planYearId, nextIncludedPlanIds);
     setIsAddExistingPlansOpen(false);
   };
 
   const openPlanDetails = (plan: PlanOption) => {
     setActivePlanDetails(plan);
-    setSelectedVersionId('2026');
+    setSelectedVersionId(defaultPlanVersionId);
     setIsPlanDetailsOpen(true);
   };
 
@@ -278,51 +327,42 @@ export function PlanYearPlans() {
     const baseName =
       activePlanDetails.name === '[Plan Name]' ? 'Medical Plan' : activePlanDetails.name;
 
-    return [
-      {
-        id: '2026',
-        label: '01/01/2026 - 12/31/2026',
-        status: 'Active',
-        planName: `${baseName} Plan Name 1`,
-        carrier: 'UnitedHealthCare',
-        groupNumber: 'A-324589',
-        planType: type,
-        planTypeId: '--',
-        summary: 'Low Deductible Plan Family Eligible',
-        description:
-          'The Acme Health PPO Plus plan gives you flexibility to see the doctors you trust, with coverage both in and out of network. You’ll pay less when you stay in-network, but you’re never locked in.',
-        attachmentName: 'PlanDoc-2026.pdf',
-      },
-      {
-        id: '2025',
-        label: '01/01/2025 - 12/31/2025',
-        status: 'Inactive',
-        planName: `${baseName} Legacy 2025`,
-        carrier: 'UnitedHealthCare',
-        groupNumber: 'A-294210',
-        planType: type,
-        planTypeId: 'HMO-25',
-        summary: 'Family and Employee Coverage',
-        description:
-          'The 2025 version includes in-network focused coverage with moderate deductibles and expanded preventive care benefits.',
-        attachmentName: 'PlanDoc-2025.pdf',
-      },
-      {
-        id: '2024',
-        label: '01/01/2024 - 12/31/2024',
-        status: 'Inactive',
-        planName: `${baseName} Legacy 2024`,
-        carrier: 'UnitedHealthCare',
-        groupNumber: 'A-261908',
-        planType: type,
-        planTypeId: 'HMO-24',
-        summary: 'Employee Only Base Coverage',
-        description:
-          'The 2024 version offered baseline medical coverage with a narrower provider network and standard deductible options.',
-        attachmentName: 'PlanDoc-2024.pdf',
-      },
-    ];
-  }, [activePlanDetails]);
+    if (activePlanYears.length === 0) {
+      return [
+        {
+          id: defaultPlanVersionId,
+          label: selectedPlanYear?.duration ?? 'Current Plan Year',
+          status: 'Active',
+          planName: `${baseName} Plan Name 1`,
+          carrier: 'UnitedHealthCare',
+          groupNumber: 'A-324589',
+          planType: type,
+          planTypeId: '--',
+          summary: 'Low Deductible Plan Family Eligible',
+          description:
+            'The current plan year version includes in-network and out-of-network options with preventive care coverage.',
+          attachmentName: `PlanDoc-${defaultPlanVersionId}.pdf`,
+        },
+      ];
+    }
+
+    return activePlanYears.map((planYear, index) => ({
+      id: planYear.id,
+      label: planYear.duration,
+      status: 'Active' as const,
+      planName: `${baseName} ${planYear.name}`,
+      carrier: 'UnitedHealthCare',
+      groupNumber: `A-${324589 + index * 279}`,
+      planType: type,
+      planTypeId: index === 0 ? '--' : `HMO-${planYear.name.slice(-2)}`,
+      summary: index === 0 ? 'Low Deductible Plan Family Eligible' : 'Family and Employee Coverage',
+      description:
+        index === 0
+          ? 'The current active version gives employees flexibility to see trusted providers with broad coverage options.'
+          : `This active plan year version for ${planYear.name} includes balanced deductibles and preventive care benefits.`,
+      attachmentName: `PlanDoc-${planYear.id}.pdf`,
+    }));
+  }, [activePlanDetails, activePlanYears, defaultPlanVersionId, selectedPlanYear?.duration]);
 
   const selectedVersionDetails = useMemo(
     () => planVersions.find((version) => version.id === selectedVersionId) ?? planVersions[0],
@@ -330,19 +370,14 @@ export function PlanYearPlans() {
   );
 
   return (
-    <PlanYearWizardLayout
-      activeStep="plans"
-      sidebarActions="plans"
-      sidebarNextTo={`/settings/plan-years/${planYearId}/open-enrollment`}
-      sidebarNextLabel="Next: Open Enrollment"
-    >
+    <PlanYearWizardLayout activeStep="plans">
       <section className="flex-1 min-h-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
         <div className="flex-1 px-8 py-8">
           {!hasIncludedPlans ? (
             <div className="h-full flex flex-col items-center">
               <h2
-                className="text-[24px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
                 Add All plans offered in {`[Plan Year]`}
               </h2>
@@ -362,7 +397,7 @@ export function PlanYearPlans() {
                 <Button variant="primary" size="medium" icon="chevron-right" onClick={openAddExistingPlans}>
                   Add Existing Plans
                 </Button>
-                <Button variant="standard" size="medium" icon="circle-plus-lined" showCaret>
+                <Button variant="standard" size="medium" icon="circle-plus-lined" showCaret onClick={openCreatePlan}>
                   Create New Plan
                 </Button>
               </div>
@@ -370,8 +405,8 @@ export function PlanYearPlans() {
           ) : (
             <div className="h-full rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] px-7 py-7 flex flex-col">
               <h2
-                className="text-[24px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
               >
                 Add All plans offered in {`[Plan Year]`}
               </h2>
@@ -382,7 +417,7 @@ export function PlanYearPlans() {
                   <Button variant="outlined" size="small" icon="chevron-right" onClick={openAddExistingPlans}>
                     Add Existing
                   </Button>
-                  <Button variant="standard" size="small" icon="circle-plus-lined">
+                  <Button variant="standard" size="small" icon="circle-plus-lined" onClick={openCreatePlan}>
                     Create New
                   </Button>
                 </div>
@@ -424,7 +459,7 @@ export function PlanYearPlans() {
                           </div>
 
                           <div className="w-[170px] flex items-center justify-end gap-2">
-                            <Button variant="standard" size="small" icon="pen">
+                            <Button variant="standard" size="small" icon="pen" onClick={() => openEditPlan(plan, group.carrierId)}>
                               Edit Plan
                             </Button>
                             <button
@@ -517,7 +552,7 @@ export function PlanYearPlans() {
                       <div className="w-9 shrink-0 flex items-center">
                         <input
                           type="checkbox"
-                          checked={allSelected}
+                          checked={allSelectablePlanIds.length > 0 && allSelected}
                           onChange={toggleAllPlans}
                           className="size-4 rounded-[4px] border border-[var(--border-neutral-medium)] accent-[var(--color-primary-strong)]"
                         />
@@ -529,7 +564,7 @@ export function PlanYearPlans() {
                     </div>
 
                     <div className="bg-[var(--surface-neutral-white)]">
-                      {groupedPlanOptions.map((group) => (
+                      {availableGroups.map((group) => (
                         <div key={group.carrierId} className="pt-1">
                           <div className="h-8 px-3 rounded-[8px] bg-[var(--surface-neutral-x-weak)] flex items-center">
                             <p className="text-[14px] font-semibold text-[var(--text-neutral-medium)] leading-[20px]">{group.carrierName}</p>
@@ -561,6 +596,13 @@ export function PlanYearPlans() {
                           })}
                         </div>
                       ))}
+                      {availableGroups.length === 0 && (
+                        <div className="h-[120px] border-b border-[var(--border-neutral-xx-weak)] px-3 flex items-center justify-center bg-[var(--surface-neutral-white)]">
+                          <p className="text-[15px] leading-[22px] text-[var(--text-neutral-medium)]">
+                            All available plans are already included in this plan year.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
