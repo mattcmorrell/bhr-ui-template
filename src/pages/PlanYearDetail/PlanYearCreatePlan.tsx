@@ -156,6 +156,7 @@ export function PlanYearCreatePlan() {
       endDate: displayEnd,
       summary: summary.trim() || description.trim(),
       status: 'Active',
+      source: 'created',
     });
 
     const includedPlanIds = getIncludedPlanIdsForPlanYear(planYearId, []);

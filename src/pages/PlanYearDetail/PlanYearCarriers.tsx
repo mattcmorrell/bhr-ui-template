@@ -3,7 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '../../components';
 import { benefitPlanYears } from '../../data/settingsData';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
-import { getSelectedCarrierIdsForPlanYear, setSelectedCarrierIdsForPlanYear } from './planYearWizardState';
+import {
+  getSelectedCarrierIdsForPlanYear,
+  setSelectedCarrierIdsForPlanYear,
+} from './planYearWizardState';
 
 interface SelectableBoxProps {
   label: string;
@@ -50,13 +53,12 @@ const CARRIER_OPTIONS = [
 export function PlanYearCarriers() {
   const navigate = useNavigate();
   const { planYearId = 'default' } = useParams<{ planYearId: string }>();
-  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
-  const isExistingPlanYear = Boolean(selectedPlanYear);
+  const hasPresetDefaults = benefitPlanYears.some((planYear) => planYear.id === planYearId);
   const defaultCarrierIds = CARRIER_OPTIONS.map((carrier) => carrier.id);
   const [selectedCarriers, setSelectedCarriers] = useState<Set<string>>(() => {
     const storedCarrierIds = getSelectedCarrierIdsForPlanYear(
       planYearId,
-      isExistingPlanYear ? defaultCarrierIds : [],
+      hasPresetDefaults ? defaultCarrierIds : [],
     );
     return new Set(storedCarrierIds);
   });
@@ -73,9 +75,9 @@ export function PlanYearCarriers() {
 
   return (
     <PlanYearWizardLayout activeStep="carriers">
-      <section className="flex-1 min-h-[640px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden">
+      <section className="flex-1 h-full min-h-0 rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden">
         <div className="h-full flex flex-col">
-          <div className="flex-1 px-10 pt-12 pb-8">
+          <div className="flex-1 overflow-y-auto px-10 pt-12 pb-8">
             <div className="max-w-[760px] mx-auto flex flex-col items-center">
               <h2
                 className="text-[32px] font-semibold text-[var(--text-neutral-x-strong)] mb-2 text-center"
@@ -104,7 +106,7 @@ export function PlanYearCarriers() {
             </div>
           </div>
 
-          <footer className="border-t border-[var(--border-neutral-x-weak)] px-9 py-8 flex items-center justify-between">
+          <footer className="sticky bottom-0 z-20 border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] px-9 py-8 flex items-center justify-between">
             <button
               type="button"
               onClick={() => navigate(`/settings/plan-years/${planYearId}`)}

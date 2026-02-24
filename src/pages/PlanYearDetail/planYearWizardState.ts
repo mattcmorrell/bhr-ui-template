@@ -2,6 +2,9 @@ const STORAGE_KEY = 'plan-year-selected-carriers';
 const CARRIER_PLANS_STORAGE_KEY = 'plan-year-selected-plans-by-carrier';
 const PLAN_YEAR_INCLUDED_PLANS_STORAGE_KEY = 'plan-year-included-plan-ids';
 const PLAN_YEAR_CUSTOM_PLANS_STORAGE_KEY = 'plan-year-custom-plans';
+const PLAN_YEAR_CUSTOM_YEARS_STORAGE_KEY = 'plan-year-custom-years';
+const PLAN_YEAR_BASICS_DRAFT_STORAGE_KEY = 'plan-year-basics-drafts';
+const PLAN_YEAR_DELETED_IDS_STORAGE_KEY = 'plan-year-deleted-ids';
 
 type CarrierSelectionsByYear = Record<string, string[]>;
 
@@ -124,6 +127,7 @@ export interface PlanYearCustomPlan {
   endDate: string;
   summary: string;
   status: 'Active' | 'Inactive';
+  source?: 'created' | 'renewed';
 }
 
 type CustomPlansByYear = Record<string, PlanYearCustomPlan[]>;
@@ -159,4 +163,153 @@ export function addCustomPlanForPlanYear(planYearId: string, plan: PlanYearCusto
   const currentPlans = allCustomPlansByYear[planYearId] ?? [];
   allCustomPlansByYear[planYearId] = [...currentPlans, plan];
   writeCustomPlansByYear(allCustomPlansByYear);
+}
+
+export interface PlanYearRecord {
+  id: string;
+  name: string;
+  plans: number;
+  status: 'Closed' | 'Active' | 'Draft';
+  duration: string;
+  pending?: number;
+  approved?: number;
+  incomplete?: number;
+  missingInfoCount?: number;
+  nameIsLink?: boolean;
+}
+
+type PlanYearRecordsById = Record<string, PlanYearRecord>;
+
+function readCustomPlanYearRecords(): PlanYearRecordsById {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_CUSTOM_YEARS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PlanYearRecordsById;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeCustomPlanYearRecords(value: PlanYearRecordsById) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_CUSTOM_YEARS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+function sortPlanYearsDescending(a: PlanYearRecord, b: PlanYearRecord) {
+  const aYear = Number.parseInt(a.id, 10);
+  const bYear = Number.parseInt(b.id, 10);
+
+  if (Number.isFinite(aYear) && Number.isFinite(bYear)) {
+    return bYear - aYear;
+  }
+
+  return b.name.localeCompare(a.name);
+}
+
+function readDeletedPlanYearIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_DELETED_IDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as string[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDeletedPlanYearIds(value: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_DELETED_IDS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+export function getBenefitPlanYearsWithCustom(basePlanYears: PlanYearRecord[]) {
+  const customPlanYearsById = readCustomPlanYearRecords();
+  const deletedPlanYearIds = new Set(readDeletedPlanYearIds());
+  const mergedById: PlanYearRecordsById = {};
+
+  basePlanYears.forEach((planYear) => {
+    if (!deletedPlanYearIds.has(planYear.id)) {
+      mergedById[planYear.id] = planYear;
+    }
+  });
+
+  Object.values(customPlanYearsById).forEach((planYear) => {
+    if (!deletedPlanYearIds.has(planYear.id)) {
+      mergedById[planYear.id] = planYear;
+    }
+  });
+
+  return Object.values(mergedById).sort(sortPlanYearsDescending);
+}
+
+export function upsertCustomPlanYearRecord(planYear: PlanYearRecord) {
+  const customPlanYearsById = readCustomPlanYearRecords();
+  customPlanYearsById[planYear.id] = planYear;
+  writeCustomPlanYearRecords(customPlanYearsById);
+
+  const deletedPlanYearIds = readDeletedPlanYearIds().filter((id) => id !== planYear.id);
+  writeDeletedPlanYearIds(deletedPlanYearIds);
+}
+
+export interface PlanYearBasicsDraft {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+type PlanYearBasicsDraftsById = Record<string, PlanYearBasicsDraft>;
+
+function readPlanYearBasicsDrafts(): PlanYearBasicsDraftsById {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_BASICS_DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PlanYearBasicsDraftsById;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePlanYearBasicsDrafts(value: PlanYearBasicsDraftsById) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_BASICS_DRAFT_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+export function getPlanYearBasicsDraft(planYearId: string, fallback: PlanYearBasicsDraft): PlanYearBasicsDraft {
+  const drafts = readPlanYearBasicsDrafts();
+  return drafts[planYearId] ?? fallback;
+}
+
+export function setPlanYearBasicsDraft(planYearId: string, draft: PlanYearBasicsDraft) {
+  const drafts = readPlanYearBasicsDrafts();
+  drafts[planYearId] = draft;
+  writePlanYearBasicsDrafts(drafts);
+}
+
+export function deletePlanYearById(planYearId: string) {
+  const deletedPlanYearIds = new Set(readDeletedPlanYearIds());
+  deletedPlanYearIds.add(planYearId);
+  writeDeletedPlanYearIds(Array.from(deletedPlanYearIds));
+
+  const customPlanYearsById = readCustomPlanYearRecords();
+  if (customPlanYearsById[planYearId]) {
+    delete customPlanYearsById[planYearId];
+    writeCustomPlanYearRecords(customPlanYearsById);
+  }
 }

@@ -9,6 +9,7 @@ import {
 import { benefitPlanYears } from '../../data/settingsData';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 import {
+  getBenefitPlanYearsWithCustom,
   getIncludedPlanIdsForPlanYear,
   getIncludedPlansForCarrier,
   setIncludedPlansForCarrier,
@@ -26,7 +27,9 @@ function fallbackCarrierName(carrierId?: string) {
 export function PlanYearCarrierPlans() {
   const navigate = useNavigate();
   const { planYearId = 'default', carrierId } = useParams<{ planYearId: string; carrierId: string }>();
-  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
+  const allPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
+  const selectedPlanYear = allPlanYears.find((planYear) => planYear.id === planYearId);
+  const hasPresetDefaults = benefitPlanYears.some((planYear) => planYear.id === planYearId);
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
 
   const carrierName = useMemo(() => {
@@ -40,7 +43,7 @@ export function PlanYearCarrierPlans() {
   const defaultIncludedPlansForCarrier = useMemo(() => {
     const includedPlanIds = getIncludedPlanIdsForPlanYear(
       planYearId,
-      defaultIncludedPlanIdsByYear[planYearId] ?? [],
+      hasPresetDefaults ? (defaultIncludedPlanIdsByYear[planYearId] ?? []) : [],
     );
     return carrierPlansFromCatalog
       .filter((plan) => includedPlanIds.includes(plan.id))
@@ -51,7 +54,7 @@ export function PlanYearCarrierPlans() {
           effectiveDate: plan.effectiveDate,
         }),
       );
-  }, [carrierPlansFromCatalog, planYearId]);
+  }, [carrierPlansFromCatalog, hasPresetDefaults, planYearId]);
 
   const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
   const [includedPlans, setIncludedPlans] = useState<IncludedCarrierPlan[]>(() => {
@@ -119,8 +122,8 @@ export function PlanYearCarrierPlans() {
 
   return (
     <PlanYearWizardLayout activeStep="plans">
-      <section className="flex-1 min-h-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
-        <div className="flex-1 px-8 py-8">
+      <section className="flex-1 h-full min-h-0 rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto px-8 py-8">
           {includedPlans.length === 0 ? (
             <div className="h-full rounded-[16px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] px-8 py-8 flex flex-col items-center text-center">
               <h2
@@ -221,7 +224,7 @@ export function PlanYearCarrierPlans() {
           )}
         </div>
 
-        <footer className="h-[128px] border-t border-[var(--border-neutral-x-weak)] px-10 flex items-center justify-between">
+        <footer className="sticky bottom-0 z-20 h-[128px] border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] px-10 flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate(`/settings/plan-years/${planYearId}/plans`)}

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Icon } from '../../components';
 import { benefitPlanYears } from '../../data/settingsData';
+import { getBenefitPlanYearsWithCustom } from './planYearWizardState';
 
 const renewSteps = [
   { id: 'plan-details', label: 'Plan Details' },
@@ -21,7 +22,8 @@ export function PlanYearRenewPlan() {
   const navigate = useNavigate();
   const { planYearId, planSlug, stepId } = useParams<{ planYearId: string; planSlug: string; stepId?: string }>();
   const visibleSteps = renewSteps.filter((step, index, allSteps) => allSteps.findIndex((item) => item.id === step.id) === index);
-  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
+  const allPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
+  const selectedPlanYear = allPlanYears.find((planYear) => planYear.id === planYearId);
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
   const planName = formatPlanName(planSlug);
   const planType = planName.split(' ')[0] ?? 'Plan';

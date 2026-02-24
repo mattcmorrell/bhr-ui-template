@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../../components';
-import { defaultIncludedPlanIdsByYear, planYearCarrierOptions } from '../../data/benefitPlansCatalog';
+import {
+  defaultIncludedPlanIdsByYear,
+  planYearCarrierOptions,
+  unifiedBenefitPlansByCarrier,
+} from '../../data/benefitPlansCatalog';
 import {
   settingsNavItems,
   accountSubTabs,
@@ -22,11 +26,22 @@ import {
   benefitPlanYears,
 } from '../../data/settingsData';
 import {
+  addCustomPlanForPlanYear,
+  deletePlanYearById,
+  getBenefitPlanYearsWithCustom,
+  getCustomPlansForPlanYear,
   getIncludedPlanIdsForPlanYear,
   getSelectedCarrierIdsForPlanYear,
   setIncludedPlanIdsForPlanYear,
   setSelectedCarrierIdsForPlanYear,
 } from '../PlanYearDetail/planYearWizardState';
+
+const unifiedPlans = Object.values(unifiedBenefitPlansByCarrier).flat();
+const unifiedPlanById = new Map(unifiedPlans.map((plan) => [plan.id, plan]));
+
+function planKey(name: string, type: string) {
+  return `${name.trim().toLowerCase()}::${type.trim().toLowerCase()}`;
+}
 
 export function Settings() {
   const navigate = useNavigate();
@@ -39,14 +54,95 @@ export function Settings() {
   const [planYearCreationMode, setPlanYearCreationMode] = useState<'existing' | 'scratch'>('existing');
   const [selectedSourcePlanYearId, setSelectedSourcePlanYearId] = useState('');
   const [isRenewPlanModalOpen, setIsRenewPlanModalOpen] = useState(false);
-  const activeBenefitPlanYears = benefitPlanYears.filter((planYear) => planYear.status === 'Active');
-  const defaultRenewPlanYearId = activeBenefitPlanYears[0]?.id ?? '';
-  const [selectedRenewOption, setSelectedRenewOption] = useState<string>(defaultRenewPlanYearId || 'new');
+  const allBenefitPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
+  const activeBenefitPlanYears = allBenefitPlanYears.filter((planYear) => planYear.status === 'Active');
+  const [selectedRenewOption, setSelectedRenewOption] = useState<string>('');
   const [renewingPlanName, setRenewingPlanName] = useState('');
+  const [renewingPlanType, setRenewingPlanType] = useState('Medical');
+  const [openPlanYearActionsId, setOpenPlanYearActionsId] = useState<string | null>(null);
   const selectedNavLabel = settingsNavItems.find((n) => n.id === activeNav)?.label ?? 'Settings';
 
+  const isPlanIncludedInPlanYear = (targetPlanYearId: string, planName: string, planType: string) => {
+    const includedPlanIds = getIncludedPlanIdsForPlanYear(
+      targetPlanYearId,
+      defaultIncludedPlanIdsByYear[targetPlanYearId] ?? [],
+    );
+    const includedPlanKeys = new Set<string>();
+
+    includedPlanIds.forEach((includedPlanId) => {
+      const unifiedPlan = unifiedPlanById.get(includedPlanId);
+      if (unifiedPlan) {
+        includedPlanKeys.add(planKey(unifiedPlan.name, unifiedPlan.type));
+      }
+    });
+
+    const customPlans = getCustomPlansForPlanYear(targetPlanYearId);
+    customPlans.forEach((plan) => {
+      includedPlanKeys.add(planKey(plan.name, plan.type));
+    });
+
+    return includedPlanKeys.has(planKey(planName, planType));
+  };
+
+  const buildRenewedPlanId = (planName: string, planYearId: string) => {
+    const slug = planName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return `renewed-${slug || 'plan'}-${planYearId}`;
+  };
+
+  const addRenewedPlanToPlanYear = (targetPlanYearId: string) => {
+    if (isPlanIncludedInPlanYear(targetPlanYearId, renewingPlanName, renewingPlanType)) {
+      return null;
+    }
+
+    const selectedPlanYear = allBenefitPlanYears.find((planYear) => planYear.id === targetPlanYearId);
+    const [effectiveDate = '01/01/2026', endDate = '12/31/2026'] = (selectedPlanYear?.duration ?? '').split(' - ');
+    const selectedCarrierIds = getSelectedCarrierIdsForPlanYear(
+      targetPlanYearId,
+      planYearCarrierOptions.map((carrier) => carrier.id),
+    );
+    const defaultCarrierId = selectedCarrierIds[0] ?? planYearCarrierOptions[0]?.id ?? 'united-healthcare';
+
+    const existingCustomPlans = getCustomPlansForPlanYear(targetPlanYearId);
+    const existingRenewedPlan = existingCustomPlans.find(
+      (plan) =>
+        plan.source === 'renewed' &&
+        plan.name.toLowerCase() === renewingPlanName.toLowerCase() &&
+        plan.type.toLowerCase() === renewingPlanType.toLowerCase(),
+    );
+
+    const renewedPlanId = existingRenewedPlan?.id ?? buildRenewedPlanId(renewingPlanName, targetPlanYearId);
+
+    if (!existingRenewedPlan) {
+      addCustomPlanForPlanYear(targetPlanYearId, {
+        id: renewedPlanId,
+        carrierId: defaultCarrierId,
+        name: renewingPlanName,
+        type: renewingPlanType,
+        effectiveDate,
+        endDate,
+        summary: `Renewed from previous year`,
+        status: 'Active',
+        source: 'renewed',
+      });
+    }
+
+    const includedPlanIds = getIncludedPlanIdsForPlanYear(
+      targetPlanYearId,
+      defaultIncludedPlanIdsByYear[targetPlanYearId] ?? [],
+    );
+    if (!includedPlanIds.includes(renewedPlanId)) {
+      setIncludedPlanIdsForPlanYear(targetPlanYearId, [...includedPlanIds, renewedPlanId]);
+    }
+
+    return renewedPlanId;
+  };
+
   const handleContinueCreatePlanYear = () => {
-    const numericPlanYears = benefitPlanYears
+    const numericPlanYears = allBenefitPlanYears
       .map((planYear) => Number.parseInt(planYear.id, 10))
       .filter((year) => Number.isFinite(year));
     const latestKnownPlanYear = numericPlanYears.length > 0 ? Math.max(...numericPlanYears) : 2026;
@@ -70,6 +166,9 @@ export function Settings() {
 
       setIncludedPlanIdsForPlanYear(targetPlanYearId, sourceIncludedPlans);
       setSelectedCarrierIdsForPlanYear(targetPlanYearId, sourceSelectedCarriers);
+    } else {
+      setIncludedPlanIdsForPlanYear(targetPlanYearId, []);
+      setSelectedCarrierIdsForPlanYear(targetPlanYearId, []);
     }
 
     setIsCreatePlanYearModalOpen(false);
@@ -77,6 +176,10 @@ export function Settings() {
   };
 
   const handleContinueRenewPlan = () => {
+    if (!selectedRenewOption) {
+      return;
+    }
+
     if (selectedRenewOption === 'new') {
       if (planYearCreationMode === 'existing' && !selectedSourcePlanYearId) {
         return;
@@ -86,8 +189,20 @@ export function Settings() {
       return;
     }
 
+    const renewedPlanId = addRenewedPlanToPlanYear(selectedRenewOption);
+    if (!renewedPlanId) return;
     setIsRenewPlanModalOpen(false);
-    navigate(`/settings/plan-years/${selectedRenewOption}/plans`);
+    navigate(`/settings/plan-years/${selectedRenewOption}/plans`, {
+      state: {
+        renewedPlanId,
+        renewedPlanName: renewingPlanName,
+      },
+    });
+  };
+
+  const handleDeletePlanYear = (planYearId: string) => {
+    deletePlanYearById(planYearId);
+    setOpenPlanYearActionsId(null);
   };
 
   return (
@@ -226,7 +341,7 @@ export function Settings() {
                     <span />
                   </div>
 
-                  {benefitPlanYears.map((planYear) => (
+                  {allBenefitPlanYears.map((planYear) => (
                     <div
                       key={planYear.id}
                       className="grid grid-cols-[1.1fr_0.5fr_0.6fr_1.7fr_2.5fr_130px] gap-4 px-6 py-6 border-b border-[var(--border-neutral-xx-weak)]"
@@ -265,11 +380,31 @@ export function Settings() {
                           <p className="text-[15px] text-[var(--text-neutral-medium)]">-</p>
                         )}
                       </div>
-                      <div className="flex items-start justify-end">
-                        <button className="inline-flex items-center gap-2 h-10 px-4 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
+                      <div className="relative flex items-start justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenPlanYearActionsId((current) =>
+                              current === planYear.id ? null : planYear.id,
+                            )
+                          }
+                          className="inline-flex items-center gap-2 h-10 px-4 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]"
+                        >
                           <Icon name="gear" size={16} />
                           <Icon name="caret-down" size={11} />
                         </button>
+
+                        {openPlanYearActionsId === planYear.id && (
+                          <div className="absolute right-0 top-12 z-20 min-w-[180px] rounded-[12px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] p-1 shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)]">
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePlanYear(planYear.id)}
+                              className="w-full rounded-[8px] px-3 py-2 text-left text-[14px] font-medium text-[#b42318] hover:bg-[#fff3f2]"
+                            >
+                              Delete plan year
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -333,7 +468,8 @@ export function Settings() {
                                   aria-label="renew plan"
                                   onClick={() => {
                                     setRenewingPlanName(plan.name);
-                                    setSelectedRenewOption(defaultRenewPlanYearId || 'new');
+                                    setRenewingPlanType(group.label);
+                                    setSelectedRenewOption('');
                                     setPlanYearCreationMode('existing');
                                     setSelectedSourcePlanYearId('');
                                     setIsRenewPlanModalOpen(true);
@@ -888,7 +1024,7 @@ export function Settings() {
                       className="w-full h-14 rounded-[12px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] px-4 text-[15px] text-[var(--text-neutral-medium)] appearance-none"
                     >
                       <option value="">-Select-</option>
-                      {benefitPlanYears.map((planYear) => (
+                      {allBenefitPlanYears.map((planYear) => (
                         <option key={planYear.id} value={planYear.id}>
                           {planYear.name}
                         </option>
@@ -965,30 +1101,44 @@ export function Settings() {
               </p>
 
               <div className="max-w-[920px] mx-auto space-y-4">
-                {activeBenefitPlanYears.map((planYear) => (
-                  <button
-                    key={planYear.id}
-                    type="button"
-                    onClick={() => setSelectedRenewOption(planYear.id)}
-                    className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
-                      selectedRenewOption === planYear.id
-                        ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
-                        : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
-                    }`}
-                  >
-                    <span className="size-14 rounded-[18px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
-                      <Icon name="calendar" size={26} />
-                    </span>
-                    <span>
-                      <span className="block text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
-                        {planYear.name}
+                {activeBenefitPlanYears.map((planYear) => {
+                  const alreadyIncluded = isPlanIncludedInPlanYear(
+                    planYear.id,
+                    renewingPlanName,
+                    renewingPlanType,
+                  );
+
+                  return (
+                    <button
+                      key={planYear.id}
+                      type="button"
+                      disabled={alreadyIncluded}
+                      onClick={() => setSelectedRenewOption(planYear.id)}
+                      className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] disabled:opacity-60 disabled:cursor-not-allowed ${
+                        selectedRenewOption === planYear.id
+                          ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
+                          : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
+                      }`}
+                    >
+                      <span className="size-14 rounded-[18px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
+                        <Icon name="calendar" size={26} />
                       </span>
-                      <span className="block mt-1 text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
-                        {planYear.duration}
+                      <span>
+                        <span className="block text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
+                          {planYear.name}
+                        </span>
+                        <span className="block mt-1 text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
+                          {planYear.duration}
+                        </span>
+                        {alreadyIncluded && (
+                          <span className="block mt-1 text-[13px] leading-[19px] text-[var(--text-neutral-medium)]">
+                            Plan already included in this plan year
+                          </span>
+                        )}
                       </span>
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
 
                 <button
                   type="button"
@@ -1071,7 +1221,7 @@ export function Settings() {
                             style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                           >
                             <option value="">-Select-</option>
-                            {benefitPlanYears.map((planYear) => (
+                            {allBenefitPlanYears.map((planYear) => (
                               <option key={planYear.id} value={planYear.id}>
                                 {planYear.name}
                               </option>
@@ -1099,7 +1249,14 @@ export function Settings() {
               <button
                 type="button"
                 onClick={handleContinueRenewPlan}
-                disabled={selectedRenewOption === 'new' && planYearCreationMode === 'existing' && !selectedSourcePlanYearId}
+                disabled={
+                  !selectedRenewOption ||
+                  (selectedRenewOption === 'new' &&
+                    planYearCreationMode === 'existing' &&
+                    !selectedSourcePlanYearId) ||
+                  (selectedRenewOption !== 'new' &&
+                    isPlanIncludedInPlanYear(selectedRenewOption, renewingPlanName, renewingPlanType))
+                }
                 className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Continue

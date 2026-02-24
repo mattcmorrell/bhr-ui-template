@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '../../components';
 import { benefitPlanYears } from '../../data/settingsData';
+import { getBenefitPlanYearsWithCustom } from './planYearWizardState';
 
 type WizardStep = 'details' | 'carriers' | 'plans' | 'open-enrollment' | 'new-hires';
 
@@ -26,7 +27,8 @@ export function PlanYearWizardLayout({
 }: PlanYearWizardLayoutProps) {
   const navigate = useNavigate();
   const { planYearId } = useParams<{ planYearId: string }>();
-  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
+  const allPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
+  const selectedPlanYear = allPlanYears.find((planYear) => planYear.id === planYearId);
   const isExistingPlanYear = Boolean(selectedPlanYear);
   const isEditFlow = isExistingPlanYear;
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
@@ -35,7 +37,7 @@ export function PlanYearWizardLayout({
 
   return (
     <div className="min-h-full">
-      <div className="bg-[var(--surface-neutral-xx-weak)] rounded-[24px] p-6 min-h-[740px]">
+      <div className="bg-[var(--surface-neutral-xx-weak)] rounded-[24px] p-6 h-[calc(100dvh-132px)] min-h-[740px] flex flex-col">
         <button
           onClick={() =>
             navigate('/settings', {
@@ -66,7 +68,7 @@ export function PlanYearWizardLayout({
           </p>
         </div>
 
-        <div className="flex gap-8">
+        <div className="flex flex-1 min-h-0 gap-8">
           <aside className="w-[304px] shrink-0">
             <div className="space-y-2">
               {wizardSteps.map((step, index) => {

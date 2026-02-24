@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button, Icon } from '../../components';
 import {
   defaultIncludedPlanIdsByYear,
@@ -8,6 +8,7 @@ import {
 } from '../../data/benefitPlansCatalog';
 import { benefitPlanYears } from '../../data/settingsData';
 import {
+  getBenefitPlanYearsWithCustom,
   getCustomPlansForPlanYear,
   getIncludedPlanIdsForPlanYear,
   getSelectedCarrierIdsForPlanYear,
@@ -22,6 +23,7 @@ interface PlanOption {
   effectiveDate: string;
   currentEndDate: string;
   previousPlanYear: string;
+  isNew?: boolean;
 }
 
 interface CarrierPlansGroup {
@@ -60,11 +62,13 @@ const PLAN_OPTIONS_BY_CARRIER: Record<string, PlanOption[]> = Object.fromEntries
 
 export function PlanYearPlans() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { planYearId = 'default' } = useParams<{ planYearId: string }>();
-  const selectedPlanYear = benefitPlanYears.find((planYear) => planYear.id === planYearId);
-  const isExistingPlanYear = Boolean(selectedPlanYear);
+  const allPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
+  const selectedPlanYear = allPlanYears.find((planYear) => planYear.id === planYearId);
+  const hasPresetDefaults = benefitPlanYears.some((planYear) => planYear.id === planYearId);
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
-  const activePlanYears = benefitPlanYears.filter((planYear) => planYear.status === 'Active');
+  const activePlanYears = allPlanYears.filter((planYear) => planYear.status === 'Active');
   const defaultPlanVersionId = activePlanYears[0]?.id ?? selectedPlanYear?.id ?? 'current';
 
   const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
@@ -74,11 +78,34 @@ export function PlanYearPlans() {
     () =>
       getIncludedPlanIdsForPlanYear(
         planYearId,
-        isExistingPlanYear ? (defaultIncludedPlanIdsByYear[planYearId] ?? []) : [],
+        hasPresetDefaults ? (defaultIncludedPlanIdsByYear[planYearId] ?? []) : [],
       ),
   );
   const [activePlanDetails, setActivePlanDetails] = useState<PlanOption | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState(defaultPlanVersionId);
+  const [isRenewConfirmationVisible, setIsRenewConfirmationVisible] = useState(
+    Boolean((location.state as { renewedPlanName?: string } | null)?.renewedPlanName),
+  );
+
+  const locationState = location.state as { renewedPlanId?: string; renewedPlanName?: string } | null;
+  const renewConfirmationName = locationState?.renewedPlanName ?? null;
+
+  useEffect(() => {
+    if (!renewConfirmationName) return;
+
+    const hideTimeout = window.setTimeout(() => {
+      setIsRenewConfirmationVisible(false);
+    }, 2600);
+
+    const clearStateTimeout = window.setTimeout(() => {
+      navigate(location.pathname, { replace: true });
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(hideTimeout);
+      window.clearTimeout(clearStateTimeout);
+    };
+  }, [location.pathname, navigate, renewConfirmationName]);
 
   const selectedCarrierIds = useMemo(
     () => getSelectedCarrierIdsForPlanYear(planYearId, planYearCarrierOptions.map((carrier) => carrier.id)),
@@ -102,6 +129,7 @@ export function PlanYearPlans() {
               effectiveDate: plan.effectiveDate,
               currentEndDate: plan.endDate,
               previousPlanYear: 'New',
+              isNew: plan.source === 'renewed',
             })),
         ],
       })),
@@ -253,19 +281,33 @@ export function PlanYearPlans() {
 
   return (
     <PlanYearWizardLayout activeStep="plans">
-      <section className="flex-1 min-h-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
-        <div className="flex-1 px-8 py-8">
+      <section className="flex-1 h-full min-h-0 rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col">
+        <div
+          className={`mx-8 mt-2 rounded-[12px] border border-[var(--color-primary-medium)] bg-[#f4faf2] px-4 py-3 flex items-center gap-3 transition-all duration-300 ${
+            renewConfirmationName && isRenewConfirmationVisible
+              ? 'max-h-[120px] opacity-100 translate-y-0'
+              : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden p-0 border-0 mt-0'
+          }`}
+        >
+          <span className="size-7 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white flex items-center justify-center">
+            <Icon name="check" size={14} />
+          </span>
+          <p className="text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)]">
+            <span className="font-semibold">{renewConfirmationName ?? 'Plan'}</span> was added to this plan year.
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto px-8 pt-2 pb-0">
           {!hasIncludedPlans ? (
             <div className="h-full flex flex-col items-center">
               <h2
-                className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
+                className="text-[24px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
               >
                 Add All plans offered in {planYearName}
               </h2>
 
-              <div className="mt-12 mb-6 size-[112px] rounded-[12px] border-2 border-[var(--border-neutral-medium)] text-[var(--border-neutral-medium)] flex items-center justify-center">
-                <Icon name="file-lines" variant="regular" size={66} />
+              <div className="mt-12 mb-6 text-[var(--icon-neutral-x-weak)] flex items-center justify-center">
+                <Icon name="file-lines" variant="regular" size={108} />
               </div>
 
               <p
@@ -285,7 +327,7 @@ export function PlanYearPlans() {
               </div>
             </div>
           ) : (
-            <div className="h-full rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] px-7 py-7 flex flex-col">
+            <div className="h-full flex flex-col">
               <h2
                 className="text-[32px] font-semibold text-[var(--text-neutral-xx-strong)] text-center"
                 style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '40px' }}
@@ -305,13 +347,13 @@ export function PlanYearPlans() {
                 </div>
               </div>
 
-              <div className="mt-3 h-[52px] bg-[var(--surface-neutral-xx-weak)] rounded-[6px] px-4 flex items-center">
+              <div className="mt-2 h-[44px] bg-[var(--surface-neutral-xx-weak)] rounded-[6px] px-4 flex items-center">
                 <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Plan Name</p>
-                <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Effective Date</p>
-                <p className="w-[170px] text-[15px] font-semibold text-[var(--text-neutral-strong)]">Status</p>
+                <p className="w-[170px] mr-8 pr-1 text-right text-[15px] font-semibold text-[var(--text-neutral-strong)]">Effective Date</p>
+                <p className="w-[170px] text-right text-[15px] font-semibold text-[var(--text-neutral-strong)]">Status</p>
               </div>
 
-              <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-1">
                 {includedGroups.map((group) => (
                   <div key={group.carrierId} className="mb-3">
                     <div className="h-8 px-3 rounded-[8px] bg-[var(--surface-neutral-x-weak)] flex items-center">
@@ -322,7 +364,7 @@ export function PlanYearPlans() {
                       {group.plans.map((plan) => (
                         <div
                           key={plan.id}
-                          className="h-[84px] rounded-[16px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-4 flex items-center"
+                          className="h-[72px] rounded-[16px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-4 flex items-center"
                         >
                           <div className="flex-1 min-w-0">
                             <button
@@ -332,10 +374,15 @@ export function PlanYearPlans() {
                             >
                               {plan.name}
                             </button>
-                            <p className="text-[13px] leading-[19px] text-[var(--text-neutral-strong)]">{plan.type}</p>
+                            {plan.isNew && (
+                              <span className="inline-flex mt-1 px-2 py-[2px] rounded-[999px] bg-[#dff2da] text-[11px] font-semibold leading-[16px] text-[var(--color-primary-strong)]">
+                                New
+                              </span>
+                            )}
+                            <p className="text-[12px] leading-[16px] text-[var(--text-neutral-strong)]">{plan.type}</p>
                           </div>
 
-                          <div className="flex-1 flex items-center gap-2 text-[var(--text-neutral-strong)]">
+                          <div className="w-[170px] shrink-0 mr-8 pr-1 flex items-center justify-end gap-2 text-[var(--text-neutral-strong)]">
                             <Icon name="calendar" size={16} />
                             <p className="text-[15px] leading-[22px]">{plan.effectiveDate}</p>
                           </div>
@@ -363,7 +410,7 @@ export function PlanYearPlans() {
           )}
         </div>
 
-        <footer className="h-[128px] border-t border-[var(--border-neutral-x-weak)] px-10 flex items-center justify-between">
+        <footer className="sticky bottom-0 z-20 h-[88px] border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] px-10 flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate(`/settings/plan-years/${planYearId}/carriers`)}
