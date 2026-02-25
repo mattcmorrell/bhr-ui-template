@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
-import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype, SetupAccount, YearToDate } from './pages';
+import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype, SetupAccount, YearToDate, NewAccountOnboarding } from './pages';
 import { JobOpeningDetail } from './pages/JobOpeningDetail';
 import { Chat } from './pages/Chat';
 import { ChatTransitionsDemo } from './pages/ChatTransitionsDemo';
@@ -43,6 +43,7 @@ function App() {
                   <Route path="/inbox" element={<Inbox />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/setup-account" element={<SetupAccount />} />
+                  <Route path="/setup-account/onboarding-test" element={<NewAccountOnboarding />} />
                   <Route path="/setup-account/year-to-date" element={<YearToDate />} />
                 </Routes>
               </AppLayout>

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Icon } from '../../components';
+import { Button, Icon } from '../../components';
 
 const heroArtworkUrl = 'https://www.figma.com/api/mcp/asset/38fabaa8-c47a-4967-a672-6df35ae6419e';
+const ONBOARDING_TEST_STORAGE_KEY = 'new-account-onboarding-upload-state-v1';
 
 interface SetupTask {
   id: string;
@@ -287,6 +288,25 @@ export function SetupAccount() {
                   6
                 </span>
               </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="standard"
+                size="small"
+                icon="circle-plus-lined"
+                onClick={() => navigate('/setup-account/onboarding-test')}
+                className="text-[13px] leading-[19px]"
+              >
+                Start Onboarding Test
+              </Button>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => window.localStorage.removeItem(ONBOARDING_TEST_STORAGE_KEY)}
+                className="text-[13px] leading-[19px]"
+              >
+                Reset Test
+              </Button>
             </div>
           </div>
 

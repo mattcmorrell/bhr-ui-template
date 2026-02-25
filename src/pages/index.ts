@@ -13,3 +13,4 @@ export { CreateJobOpening } from './CreateJobOpening';
 export { JobAIPrototype } from './JobAIPrototype';
 export { SetupAccount } from './SetupAccount';
 export { YearToDate } from './YearToDate';
+export { NewAccountOnboarding } from './NewAccountOnboarding';
