@@ -11,9 +11,10 @@ interface DropdownProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  variant?: 'default' | 'filter';
 }
 
-export function Dropdown({ label, options, value, onChange, className = '' }: DropdownProps) {
+export function Dropdown({ label, options, value, onChange, className = '', variant = 'default' }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -39,42 +40,50 @@ export function Dropdown({ label, options, value, onChange, className = '' }: Dr
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={dropdownRef}>
       {label && (
-        <label className="mr-3 text-[15px] font-medium text-[var(--text-neutral-strong)]">
+        <label className="mr-3 text-[15px] font-medium text-[var(--text-neutral-strong)] whitespace-nowrap">
           {label}
         </label>
       )}
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="
-          inline-flex items-center justify-between gap-2
-          w-full h-10
-          px-4 py-2
+        className={`
+          inline-flex items-center h-10
           bg-[var(--surface-neutral-white)]
           border border-[var(--border-neutral-medium)]
-          rounded-[var(--radius-full)]
           text-[15px] text-[var(--text-neutral-strong)]
           hover:bg-[var(--surface-neutral-xx-weak)]
           transition-colors duration-200
-        "
+          ${variant === 'filter'
+            ? 'rounded-[var(--radius-small)] min-w-[180px]'
+            : 'rounded-[var(--radius-full)] w-full px-4 py-2 gap-2 justify-between'
+          }
+        `}
         style={{ boxShadow: 'var(--shadow-100)' }}
       >
-        <span>{selectedOption?.label}</span>
-        <svg
-          width="12"
-          height="8"
-          viewBox="0 0 12 8"
-          fill="none"
-          className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-        >
-          <path
-            d="M1 1.5L6 6.5L11 1.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <span className={variant === 'filter' ? 'flex-1 px-4 py-2 text-left' : ''}>
+          {selectedOption?.label}
+        </span>
+        {variant === 'filter' && (
+          <div className="h-6 w-px bg-[var(--border-neutral-medium)] shrink-0" />
+        )}
+        <span className={variant === 'filter' ? 'px-3 py-2 flex items-center' : ''}>
+          <svg
+            width="12"
+            height="8"
+            viewBox="0 0 12 8"
+            fill="none"
+            className={`transition-transform duration-200 text-[var(--icon-neutral-x-strong)] ${isOpen ? 'rotate-180' : ''}`}
+          >
+            <path
+              d="M1 1.5L6 6.5L11 1.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
       </button>
 
       {isOpen && (

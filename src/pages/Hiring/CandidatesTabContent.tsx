@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon, Dropdown, StarRating } from '../../components';
+import { Icon, StarRating } from '../../components';
 import { candidates } from '../../data/candidates';
 
 export function CandidatesTabContent() {
@@ -99,7 +99,9 @@ export function CandidatesTabContent() {
           </div>
 
           {/* Filter Sections */}
-          {filterSections.map((section, index) => (
+          {filterSections.map((section) => {
+            const isExpanded = expandedFilters.has(section.id);
+            return (
             <div key={section.id} className="relative">
               <button
                 onClick={() => toggleFilter(section.id)}
@@ -108,11 +110,11 @@ export function CandidatesTabContent() {
                 <Icon
                   name="chevron-right"
                   size={16}
-                  className={
+                  className={`${
                     section.hasActive
                       ? 'text-[var(--color-primary-strong)]'
                       : 'text-[var(--text-neutral-x-strong)]'
-                  }
+                  } ${isExpanded ? 'rotate-90' : ''}`}
                 />
                 <span
                   className={`text-[15px] flex-1 text-left ${
@@ -130,7 +132,8 @@ export function CandidatesTabContent() {
               {/* Divider */}
               <div className="absolute bottom-0 left-[21px] right-0 h-px bg-[var(--border-neutral-x-weak)]" />
             </div>
-          ))}
+            );
+          })}
         </div>
         </div>
 
@@ -170,7 +173,7 @@ export function CandidatesTabContent() {
                 </tr>
               </thead>
               <tbody>
-                {candidates.map((candidate, index) => (
+                {candidates.map((candidate) => (
                   <tr
                     key={candidate.id}
                     className="border-t border-[var(--border-neutral-x-weak)] hover:bg-[var(--surface-neutral-xx-weak)] transition-colors"

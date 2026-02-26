@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Icon, TextInput, Button, PendingFeedbackCard, FeedbackCard } from '../../components';
+import type { IconName } from '../../components/Icon';
 
 interface FeedbackTabContentProps {
   employeeName: string;
@@ -149,7 +150,7 @@ export function FeedbackTabContent({ employeeName }: FeedbackTabContentProps) {
             authorName={feedback.authorName}
             authorTitle={feedback.authorTitle}
             date={feedback.date}
-            iconName={feedback.iconName}
+            iconName={feedback.iconName as IconName}
             strengths={feedback.strengths}
             improvements={feedback.improvements}
           />

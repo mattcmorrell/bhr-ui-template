@@ -86,12 +86,10 @@ export function InlineContextual() {
     field,
     value,
     reason,
-    onAccept
   }: {
     field: string;
     value: string;
     reason: string;
-    onAccept: () => void;
   }) => {
     if (focusedField !== field || acceptedFields.has(field)) return null;
 
@@ -175,7 +173,6 @@ export function InlineContextual() {
                   field="jobStatus"
                   value={suggestion.jobStatus}
                   reason="Based on similar postings"
-                  onAccept={() => acceptSuggestion('jobStatus', suggestion.jobStatus, setJobStatus)}
                 />
               )}
             </div>
@@ -204,7 +201,6 @@ export function InlineContextual() {
                     field="hiringLead"
                     value={suggestion.hiringLead}
                     reason="Most common lead for this role"
-                    onAccept={() => acceptSuggestion('hiringLead', suggestion.hiringLead, setHiringLead)}
                   />
                 )}
               </div>
@@ -231,7 +227,6 @@ export function InlineContextual() {
                     field="department"
                     value={suggestion.department}
                     reason="Based on job title"
-                    onAccept={() => acceptSuggestion('department', suggestion.department, setDepartment)}
                   />
                 )}
               </div>
@@ -261,7 +256,6 @@ export function InlineContextual() {
                     field="employmentType"
                     value={suggestion.employmentType}
                     reason="Most common for this role"
-                    onAccept={() => acceptSuggestion('employmentType', suggestion.employmentType, setEmploymentType)}
                   />
                 )}
               </div>
@@ -288,7 +282,6 @@ export function InlineContextual() {
                     field="minimumExperience"
                     value={suggestion.minimumExperience}
                     reason="Typical for this position level"
-                    onAccept={() => acceptSuggestion('minimumExperience', suggestion.minimumExperience, setMinimumExperience)}
                   />
                 )}
               </div>
@@ -318,7 +311,6 @@ export function InlineContextual() {
                   field="compensation"
                   value={suggestion.compensation}
                   reason="Market rate for similar roles"
-                  onAccept={() => acceptSuggestion('compensation', suggestion.compensation, setCompensation)}
                 />
               )}
             </div>
@@ -403,7 +395,6 @@ export function InlineContextual() {
                   field="internalJobCode"
                   value={suggestion.internalJobCode}
                   reason="Auto-generated code"
-                  onAccept={() => acceptSuggestion('internalJobCode', suggestion.internalJobCode, setInternalJobCode)}
                 />
               )}
             </div>

@@ -1,6 +1,31 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
-import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype } from './pages';
+import {
+  Home,
+  MyInfo,
+  People,
+  Hiring,
+  Reports,
+  Files,
+  Payroll,
+  Benefits,
+  EditPlanYear,
+  PlanYearDetail,
+  PlanYearCarriers,
+  PlanYearPlans,
+  PlanYearCarrierPlans,
+  PlanYearCreatePlan,
+  PlanYearEditPlan,
+  PlanYearRenewPlan,
+  PlanYearOpenEnrollment,
+  PlanYearNewHires,
+  Settings,
+  Inbox,
+  NewEmployeePage,
+  DatePickerDemo,
+  CreateJobOpening,
+  JobAIPrototype,
+} from './pages';
 import { JobOpeningDetail } from './pages/JobOpeningDetail';
 import { Chat } from './pages/Chat';
 import { ChatTransitionsDemo } from './pages/ChatTransitionsDemo';
@@ -40,8 +65,23 @@ function App() {
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/payroll" element={<Payroll />} />
+                  <Route path="/benefits" element={<Benefits />} />
+                  <Route path="/benefits/edit-plan-year" element={<EditPlanYear />} />
                   <Route path="/inbox" element={<Inbox />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/settings/plan-years/:planYearId" element={<PlanYearDetail />} />
+                  <Route path="/settings/plan-years/:planYearId/carriers" element={<PlanYearCarriers />} />
+                  <Route path="/settings/plan-years/:planYearId/plans" element={<PlanYearPlans />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/:carrierId" element={<PlanYearCarrierPlans />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/:stepId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/carrier/:carrierId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/create/carrier/:carrierId/:stepId" element={<PlanYearCreatePlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/edit/:planRef" element={<PlanYearEditPlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/edit/:planRef/:stepId" element={<PlanYearEditPlan />} />
+                  <Route path="/settings/plan-years/:planYearId/plans/:planSlug/renew/:stepId?" element={<PlanYearRenewPlan />} />
+                  <Route path="/settings/plan-years/:planYearId/open-enrollment" element={<PlanYearOpenEnrollment />} />
+                  <Route path="/settings/plan-years/:planYearId/new-hires" element={<PlanYearNewHires />} />
                 </Routes>
               </AppLayout>
             }
