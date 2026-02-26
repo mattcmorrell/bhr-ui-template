@@ -1,4 +1,4 @@
-import { useState, Fragment, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Button,
@@ -9,7 +9,7 @@ import {
 import {
   benefitsEmployees,
   attentionItems,
-  planCategories,
+  benefitPlanVersions,
   carriers,
 } from '../../data/benefitsData';
 
@@ -20,7 +20,6 @@ export function Benefits() {
   const [enrollmentTab, setEnrollmentTab] = useState<EnrollmentTab>('completed');
   const [planYearTab, setPlanYearTab] = useState<PlanYearTab>('employee-elections');
   const [planSearchQuery, setPlanSearchQuery] = useState('');
-  const [planGroupBy, setPlanGroupBy] = useState('plan-category');
   const [carrierSearchQuery, setCarrierSearchQuery] = useState('');
   const [carrierStatusFilter, setCarrierStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -488,13 +487,6 @@ export function Benefits() {
                     className="flex-1 min-w-0 bg-transparent text-[14px] text-[var(--text-neutral-strong)] placeholder:text-[var(--text-neutral-weak)] outline-none"
                   />
                 </div>
-                <Dropdown
-                  label="Group by"
-                  variant="filter"
-                  options={[{ value: 'plan-category', label: 'Plan Category' }]}
-                  value={planGroupBy}
-                  onChange={setPlanGroupBy}
-                />
               </div>
             </div>
 
@@ -505,6 +497,15 @@ export function Benefits() {
                   <tr className="bg-[var(--surface-neutral-xx-weak)]">
                     <th className="px-6 py-4 text-left text-[15px] font-semibold text-[var(--text-neutral-x-strong)] rounded-tl-[8px] rounded-bl-[8px]">
                       Plan Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-[15px] font-semibold text-[var(--text-neutral-x-strong)]">
+                      Carrier
+                    </th>
+                    <th className="px-6 py-4 text-left text-[15px] font-semibold text-[var(--text-neutral-x-strong)]">
+                      Plan Year
+                    </th>
+                    <th className="px-6 py-4 text-left text-[15px] font-semibold text-[var(--text-neutral-x-strong)]">
+                      Start Date
                     </th>
                     <th className="px-6 py-4 text-left text-[15px] font-semibold text-[var(--text-neutral-x-strong)]">
                       End Date
@@ -518,57 +519,40 @@ export function Benefits() {
                   </tr>
                 </thead>
                 <tbody>
-                  {planCategories
-                    .filter((cat) =>
+                  {benefitPlanVersions
+                    .filter((planVersion) =>
                       planSearchQuery
-                        ? cat.name.toLowerCase().includes(planSearchQuery.toLowerCase()) ||
-                          cat.plans.some((p) =>
-                            p.name.toLowerCase().includes(planSearchQuery.toLowerCase())
-                          )
+                        ? planVersion.name.toLowerCase().includes(planSearchQuery.toLowerCase()) ||
+                          planVersion.carrier.toLowerCase().includes(planSearchQuery.toLowerCase())
                         : true
                     )
-                    .map((category) => (
-                      <Fragment key={category.id}>
-                        <tr>
-                          <td colSpan={4} className="px-0 py-1">
-                            <div className="flex items-center gap-2 px-6 py-3 bg-[var(--surface-neutral-x-weak)] rounded-[8px]">
-                              <Icon
-                                name={category.icon}
-                                size={16}
-                                className="text-[var(--icon-neutral-x-strong)]"
-                              />
-                              <span className="text-[15px] font-semibold text-[var(--text-neutral-x-strong)]">
-                                {category.name}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                        {category.plans
-                          .filter((plan) =>
-                            planSearchQuery
-                              ? plan.name.toLowerCase().includes(planSearchQuery.toLowerCase())
-                              : true
-                          )
-                          .map((plan) => (
-                            <tr
-                              key={plan.id}
-                              className="border-t border-[var(--border-neutral-x-weak)] hover:bg-[var(--surface-neutral-xx-weak)] transition-colors"
-                            >
-                              <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-strong)]">
-                                {plan.name}
-                              </td>
-                              <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
-                                {plan.endDate}
-                              </td>
-                              <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
-                                {plan.eligibility}
-                              </td>
-                              <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
-                                {plan.enrolledCount} Enrolled, {plan.notEnrolledCount} Not enrolled/Waived
-                              </td>
-                            </tr>
-                          ))}
-                      </Fragment>
+                    .map((planVersion) => (
+                      <tr
+                        key={planVersion.id}
+                        className="border-t border-[var(--border-neutral-x-weak)] hover:bg-[var(--surface-neutral-xx-weak)] transition-colors"
+                      >
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-strong)]">
+                          {planVersion.name}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.carrier}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.planYear}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.startDate}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.endDate}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.eligibility}
+                        </td>
+                        <td className="px-6 py-4 text-[15px] text-[var(--text-neutral-medium)]">
+                          {planVersion.enrolledCount} Enrolled, {planVersion.notEnrolledCount} Not enrolled/Waived
+                        </td>
+                      </tr>
                     ))}
                 </tbody>
               </table>

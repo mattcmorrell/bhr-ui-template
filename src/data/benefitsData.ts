@@ -125,116 +125,150 @@ export const benefitsEmployees: BenefitsEmployee[] = [
   },
 ];
 
-export interface BenefitPlan {
+export interface BenefitPlanVersion {
   id: string;
   name: string;
+  carrier: string;
+  planYear: string;
+  startDate: string;
   endDate: string;
   eligibility: string;
   enrolledCount: number;
   notEnrolledCount: number;
 }
 
-export interface PlanCategory {
-  id: string;
-  name: string;
-  icon: 'heart' | 'shield' | 'eye' | 'compass' | 'building' | 'circle-dollar' | 'wrench' | 'piggy-bank' | 'arrows-rotate' | 'star';
-  plans: BenefitPlan[];
-}
-
-export const planCategories: PlanCategory[] = [
+export const benefitPlanVersions: BenefitPlanVersion[] = [
   {
-    id: 'medical',
-    name: 'Medical',
-    icon: 'heart',
-    plans: [
-      { id: 'm1', name: 'Medical Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 'm2', name: 'Medical Plan Name 2', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 'm3', name: 'Medical Plan Name 3', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'm1-v2026',
+    name: 'Medical Plan Name 1',
+    carrier: 'United Healthcare',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 126,
+    notEnrolledCount: 24,
   },
   {
-    id: 'dental',
-    name: 'Dental',
-    icon: 'shield',
-    plans: [
-      { id: 'd1', name: 'Dental Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'm2-v2026',
+    name: 'Medical Plan Name 2',
+    carrier: 'United Healthcare',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 82,
+    notEnrolledCount: 68,
   },
   {
-    id: 'vision',
-    name: 'Vision',
-    icon: 'eye',
-    plans: [
-      { id: 'v1', name: 'Vision Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'm3-v2026',
+    name: 'Medical Plan Name 3',
+    carrier: 'United Healthcare',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 34,
+    notEnrolledCount: 116,
   },
   {
-    id: 'supplemental',
-    name: 'Supplemental',
-    icon: 'compass',
-    plans: [
-      { id: 's1', name: 'Supplemental Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 's2', name: 'Supplemental Plan Name 2', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 's3', name: 'Supplemental Plan Name 3', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'd1-v2026',
+    name: 'Dental Plan Name 1',
+    carrier: 'Delta Dental',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 118,
+    notEnrolledCount: 32,
   },
   {
-    id: 'hsa',
-    name: 'HSA',
-    icon: 'building',
-    plans: [
-      { id: 'h1', name: 'HSA Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'v1-v2026',
+    name: 'Vision Plan Name 1',
+    carrier: 'VSP',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 111,
+    notEnrolledCount: 39,
   },
   {
-    id: 'fsa',
-    name: 'FSA',
-    icon: 'circle-dollar',
-    plans: [
-      { id: 'f1', name: 'FSA Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 's1-v2026',
+    name: 'Supplemental Plan Name 1',
+    carrier: 'Aflac',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 74,
+    notEnrolledCount: 76,
   },
   {
-    id: 'disability',
-    name: 'Disability',
-    icon: 'wrench',
-    plans: [
-      { id: 'dis1', name: 'Disability Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 'dis2', name: 'Disability Plan Name 2', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-      { id: 'dis3', name: 'Disability Plan Name 3', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'h1-v2026',
+    name: 'HSA Plan Name 1',
+    carrier: 'Fidelity',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 88,
+    notEnrolledCount: 62,
   },
   {
-    id: 'retirement',
-    name: 'Retirement',
-    icon: 'piggy-bank',
-    plans: [
-      { id: 'r1', name: '401(k) Plan', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'f1-v2026',
+    name: 'FSA Plan Name 1',
+    carrier: 'Fidelity',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 69,
+    notEnrolledCount: 81,
   },
   {
-    id: 'reimbursement',
-    name: 'Reimbursement',
-    icon: 'arrows-rotate',
-    plans: [
-      { id: 're1', name: 'Reimbursement Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'dis1-v2026',
+    name: 'Disability Plan Name 1',
+    carrier: 'Guardian',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 63,
+    notEnrolledCount: 87,
   },
   {
-    id: 'life',
-    name: 'Life',
-    icon: 'heart',
-    plans: [
-      { id: 'l1', name: 'Life Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'r1-v2026',
+    name: '401(k) Plan',
+    carrier: 'Fidelity',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 104,
+    notEnrolledCount: 46,
   },
   {
-    id: 'other',
-    name: 'Other',
-    icon: 'star',
-    plans: [
-      { id: 'o1', name: 'Other Plan Name 1', endDate: '12/31/2024', eligibility: 'Full-Time', enrolledCount: 120, notEnrolledCount: 20 },
-    ],
+    id: 'l1-v2026',
+    name: 'Life Plan Name 1',
+    carrier: 'Met Life',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 121,
+    notEnrolledCount: 29,
+  },
+  {
+    id: 'o1-v2026',
+    name: 'Other Plan Name 1',
+    carrier: 'Aetna',
+    planYear: '2026',
+    startDate: '01/01/2026',
+    endDate: '12/31/2026',
+    eligibility: 'Full-Time',
+    enrolledCount: 52,
+    notEnrolledCount: 98,
   },
 ];
 

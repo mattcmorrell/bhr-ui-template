@@ -11,8 +11,10 @@ import {
   getBenefitPlanYearsWithCustom,
   getCustomPlansForPlanYear,
   getIncludedPlanIdsForPlanYear,
+  getPlanReviewDecisionsForPlanYear,
   getSelectedCarrierIdsForPlanYear,
   setIncludedPlanIdsForPlanYear,
+  setPlanReviewDecisionsForPlanYear,
 } from './planYearWizardState';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 
@@ -83,6 +85,9 @@ export function PlanYearPlans() {
   );
   const [activePlanDetails, setActivePlanDetails] = useState<PlanOption | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState(defaultPlanVersionId);
+  const [planReviewDecisions, setPlanReviewDecisions] = useState<Record<string, 'confirm-as-is' | 'make-changes'>>(
+    () => getPlanReviewDecisionsForPlanYear(planYearId),
+  );
   const [isRenewConfirmationVisible, setIsRenewConfirmationVisible] = useState(
     Boolean((location.state as { renewedPlanName?: string } | null)?.renewedPlanName),
   );
@@ -171,6 +176,30 @@ export function PlanYearPlans() {
   const selectedCount = selectedPlanIds.length;
   const allSelected = allSelectablePlanIds.length > 0 && selectedCount === allSelectablePlanIds.length;
   const hasIncludedPlans = includedPlanIds.length > 0;
+  const reviewedPlansCount = includedPlanIds.filter((planId) => Boolean(planReviewDecisions[planId])).length;
+  const remainingReviewCount = Math.max(0, includedPlanIds.length - reviewedPlansCount);
+  const allIncludedPlansReviewed = hasIncludedPlans && remainingReviewCount === 0;
+
+  useEffect(() => {
+    const includedSet = new Set(includedPlanIds);
+    const filteredDecisions: Record<string, 'confirm-as-is' | 'make-changes'> = {};
+
+    Object.entries(planReviewDecisions).forEach(([planId, decision]) => {
+      if (includedSet.has(planId)) filteredDecisions[planId] = decision;
+    });
+
+    const hasChanges =
+      Object.keys(filteredDecisions).length !== Object.keys(planReviewDecisions).length ||
+      Object.entries(filteredDecisions).some(([planId, decision]) => planReviewDecisions[planId] !== decision);
+
+    if (hasChanges) {
+      setPlanReviewDecisions(filteredDecisions);
+      setPlanReviewDecisionsForPlanYear(planYearId, filteredDecisions);
+      return;
+    }
+
+    setPlanReviewDecisionsForPlanYear(planYearId, filteredDecisions);
+  }, [includedPlanIds, planReviewDecisions, planYearId]);
 
   const togglePlan = (planId: string) => {
     setSelectedPlanIds((current) =>
@@ -202,6 +231,17 @@ export function PlanYearPlans() {
 
   const openCreatePlan = () => {
     navigate(`/settings/plan-years/${planYearId}/plans/create`);
+  };
+
+  const choosePlanReviewDecision = (planId: string, decision: 'confirm-as-is' | 'make-changes') => {
+    setPlanReviewDecisions((current) => {
+      const next = {
+        ...current,
+        [planId]: decision,
+      };
+      setPlanReviewDecisionsForPlanYear(planYearId, next);
+      return next;
+    });
   };
 
   const openEditPlan = (plan: PlanOption, carrierId: string) => {
@@ -347,54 +387,88 @@ export function PlanYearPlans() {
                 </div>
               </div>
 
-              <div className="mt-2 h-[44px] bg-[var(--surface-neutral-xx-weak)] rounded-[6px] px-4 flex items-center">
+              <div className="mt-2 h-[44px] bg-[var(--surface-neutral-xx-weak)] rounded-[8px] px-4 flex items-center">
                 <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Plan Name</p>
-                <p className="w-[170px] mr-8 pr-1 text-right text-[15px] font-semibold text-[var(--text-neutral-strong)]">Effective Date</p>
-                <p className="w-[170px] text-right text-[15px] font-semibold text-[var(--text-neutral-strong)]">Status</p>
+                <p className="w-[197px] text-[15px] font-semibold text-[var(--text-neutral-strong)]">Type</p>
+                <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Effective Dates</p>
+                <p className="w-[320px] text-[15px] font-semibold text-[var(--text-neutral-strong)]">Plan Decision</p>
+                <p className="w-[60px]" />
               </div>
 
-              <div className="mt-2 flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="mt-1 flex-1 min-h-0 overflow-y-auto pr-1">
                 {includedGroups.map((group) => (
-                  <div key={group.carrierId} className="mb-3">
-                    <div className="h-8 px-3 rounded-[8px] bg-[var(--surface-neutral-x-weak)] flex items-center">
-                      <p className="text-[14px] font-semibold text-[var(--text-neutral-medium)] leading-[20px]">{group.carrierName}</p>
+                  <div key={group.carrierId}>
+                    <div className="h-9 px-4 rounded-[8px] bg-[var(--surface-neutral-x-weak)] flex items-center border-b border-[var(--border-neutral-xx-weak)]">
+                      <p className="text-[14px] font-semibold leading-[20px] text-[var(--text-neutral-medium)]">{group.carrierName}</p>
                     </div>
 
-                    <div className="mt-2 space-y-2">
+                    <div>
                       {group.plans.map((plan) => (
                         <div
                           key={plan.id}
-                          className="h-[72px] rounded-[16px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-4 flex items-center"
+                          className="group h-[64px] border-b border-[var(--border-neutral-xx-weak)] px-4 flex items-center"
                         >
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 pr-4">
                             <button
                               type="button"
                               onClick={() => openPlanDetails(plan)}
-                              className="text-[16px] font-medium leading-[24px] text-[#0b4fd1] truncate text-left hover:underline"
+                              className="text-[15px] font-normal leading-[22px] text-[#0b4fd1] truncate text-left hover:underline"
                             >
                               {plan.name}
                             </button>
-                            {plan.isNew && (
-                              <span className="inline-flex mt-1 px-2 py-[2px] rounded-[999px] bg-[#dff2da] text-[11px] font-semibold leading-[16px] text-[var(--color-primary-strong)]">
-                                New
-                              </span>
+                          </div>
+
+                          <div className="w-[197px] pr-4">
+                            <p className="text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] truncate">
+                              {plan.type}
+                            </p>
+                          </div>
+
+                          <div className="flex-1 pr-4">
+                            <p className="text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] truncate">
+                              {plan.effectiveDate} - {plan.currentEndDate}
+                            </p>
+                          </div>
+
+                          <div className="w-[320px] flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => choosePlanReviewDecision(plan.id, 'confirm-as-is')}
+                              className={`h-9 px-3 rounded-[999px] border text-[13px] font-semibold leading-[18px] transition-colors ${
+                                planReviewDecisions[plan.id] === 'confirm-as-is'
+                                  ? 'border-[var(--color-primary-strong)] bg-[#dff2da] text-[var(--color-primary-strong)]'
+                                  : 'border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]'
+                              }`}
+                            >
+                              Confirm as Is
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => choosePlanReviewDecision(plan.id, 'make-changes')}
+                              className={`h-9 px-3 rounded-[999px] border text-[13px] font-semibold leading-[18px] transition-colors ${
+                                planReviewDecisions[plan.id] === 'make-changes'
+                                  ? 'border-[#996700] bg-[#fff3cf] text-[#7a5100]'
+                                  : 'border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]'
+                              }`}
+                            >
+                              Make Changes
+                            </button>
+                            {planReviewDecisions[plan.id] === 'make-changes' && (
+                              <button
+                                type="button"
+                                onClick={() => openEditPlan(plan, group.carrierId)}
+                                className="h-9 px-3 rounded-[999px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[13px] font-semibold leading-[18px] text-[#0b4fd1] hover:bg-[var(--surface-neutral-xx-weak)]"
+                              >
+                                Edit
+                              </button>
                             )}
-                            <p className="text-[12px] leading-[16px] text-[var(--text-neutral-strong)]">{plan.type}</p>
                           </div>
 
-                          <div className="w-[170px] shrink-0 mr-8 pr-1 flex items-center justify-end gap-2 text-[var(--text-neutral-strong)]">
-                            <Icon name="calendar" size={16} />
-                            <p className="text-[15px] leading-[22px]">{plan.effectiveDate}</p>
-                          </div>
-
-                          <div className="w-[170px] flex items-center justify-end gap-2">
-                            <Button variant="standard" size="small" icon="pen" onClick={() => openEditPlan(plan, group.carrierId)}>
-                              Edit Plan
-                            </Button>
+                          <div className="w-[60px] flex items-center justify-end">
                             <button
                               type="button"
                               onClick={() => removeIncludedPlan(plan.id)}
-                              className="size-10 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] shadow-[var(--shadow-100)] text-[16px] leading-none flex items-center justify-center"
+                              className="size-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] shadow-[var(--shadow-100)] text-[16px] leading-none flex items-center justify-center"
                               aria-label={`Remove ${plan.name}`}
                             >
                               -
@@ -419,13 +493,25 @@ export function PlanYearPlans() {
             Previous
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`/settings/plan-years/${planYearId}/open-enrollment`)}
-            className="h-12 px-9 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[18px] font-semibold leading-[26px] shadow-[var(--shadow-100)]"
-          >
-            Next
-          </button>
+          <div className="flex items-center gap-4">
+            {hasIncludedPlans && !allIncludedPlansReviewed && (
+              <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">
+                Review remaining plans: {remainingReviewCount}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(`/settings/plan-years/${planYearId}/open-enrollment`)}
+              disabled={!allIncludedPlansReviewed}
+              className={`h-12 px-9 rounded-[var(--radius-full)] text-[18px] font-semibold leading-[26px] shadow-[var(--shadow-100)] ${
+                allIncludedPlansReviewed
+                  ? 'bg-[var(--color-primary-strong)] text-white'
+                  : 'bg-[var(--surface-neutral-medium)] text-white cursor-not-allowed'
+              }`}
+            >
+              Next
+            </button>
+          </div>
         </footer>
       </section>
 

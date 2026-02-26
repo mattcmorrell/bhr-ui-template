@@ -5,6 +5,7 @@ const PLAN_YEAR_CUSTOM_PLANS_STORAGE_KEY = 'plan-year-custom-plans';
 const PLAN_YEAR_CUSTOM_YEARS_STORAGE_KEY = 'plan-year-custom-years';
 const PLAN_YEAR_BASICS_DRAFT_STORAGE_KEY = 'plan-year-basics-drafts';
 const PLAN_YEAR_DELETED_IDS_STORAGE_KEY = 'plan-year-deleted-ids';
+const PLAN_YEAR_PLAN_REVIEW_DECISIONS_STORAGE_KEY = 'plan-year-plan-review-decisions';
 
 type CarrierSelectionsByYear = Record<string, string[]>;
 
@@ -312,4 +313,39 @@ export function deletePlanYearById(planYearId: string) {
     delete customPlanYearsById[planYearId];
     writeCustomPlanYearRecords(customPlanYearsById);
   }
+}
+
+export type PlanReviewDecision = 'confirm-as-is' | 'make-changes';
+type PlanReviewDecisionsByYear = Record<string, Record<string, PlanReviewDecision>>;
+
+function readPlanReviewDecisionsByYear(): PlanReviewDecisionsByYear {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PLAN_YEAR_PLAN_REVIEW_DECISIONS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as PlanReviewDecisionsByYear;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePlanReviewDecisionsByYear(value: PlanReviewDecisionsByYear) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PLAN_YEAR_PLAN_REVIEW_DECISIONS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // no-op: localStorage may be unavailable
+  }
+}
+
+export function getPlanReviewDecisionsForPlanYear(planYearId: string) {
+  const allDecisionsByYear = readPlanReviewDecisionsByYear();
+  return allDecisionsByYear[planYearId] ?? {};
+}
+
+export function setPlanReviewDecisionsForPlanYear(planYearId: string, decisions: Record<string, PlanReviewDecision>) {
+  const allDecisionsByYear = readPlanReviewDecisionsByYear();
+  allDecisionsByYear[planYearId] = decisions;
+  writePlanReviewDecisionsByYear(allDecisionsByYear);
 }

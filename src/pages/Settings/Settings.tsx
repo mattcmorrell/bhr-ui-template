@@ -43,6 +43,29 @@ function planKey(name: string, type: string) {
   return `${name.trim().toLowerCase()}::${type.trim().toLowerCase()}`;
 }
 
+interface SettingsPlanDetails {
+  id: string;
+  name: string;
+  type: string;
+  endDate: string;
+}
+
+interface SettingsPlanVersionDetails {
+  id: string;
+  versionLabel: string;
+  effectiveStart: string;
+  effectiveEnd: string;
+  status: 'Active' | 'Inactive';
+  planName: string;
+  carrier: string;
+  groupNumber: string;
+  planType: string;
+  planTypeId: string;
+  summary: string;
+  description: string;
+  attachmentName: string;
+}
+
 export function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,7 +83,75 @@ export function Settings() {
   const [renewingPlanName, setRenewingPlanName] = useState('');
   const [renewingPlanType, setRenewingPlanType] = useState('Medical');
   const [openPlanYearActionsId, setOpenPlanYearActionsId] = useState<string | null>(null);
+  const [isSettingsPlanDetailsOpen, setIsSettingsPlanDetailsOpen] = useState(false);
+  const [activeSettingsPlanDetails, setActiveSettingsPlanDetails] = useState<SettingsPlanDetails | null>(null);
+  const [selectedSettingsVersionId, setSelectedSettingsVersionId] = useState('');
+  const [hiddenSettingsVersionIds, setHiddenSettingsVersionIds] = useState<Set<string>>(new Set());
+  const [openVersionActionsId, setOpenVersionActionsId] = useState<string | null>(null);
+  const [openEligibilityPlanId, setOpenEligibilityPlanId] = useState<string | null>(null);
   const selectedNavLabel = settingsNavItems.find((n) => n.id === activeNav)?.label ?? 'Settings';
+  const buildEligibilityFilters = (eligibility: string) => {
+    if (eligibility.toLowerCase().includes('30+ hrs')) {
+      return [
+        'Employment status: Full-Time',
+        'Minimum scheduled hours: 30+ per week',
+        'Benefits waiting period: 30 days',
+        'Available to US employees only',
+      ];
+    }
+
+    if (eligibility.toLowerCase().includes('full-time')) {
+      return [
+        'Employment status: Full-Time',
+        'Benefits waiting period: 30 days',
+        'Available to US employees only',
+      ];
+    }
+
+    return [eligibility];
+  };
+  const summarizeEligibilityFilters = (filters: string[]) => {
+    const toToken = (filter: string) => {
+      if (filter.startsWith('Employment status:')) return filter.replace('Employment status:', '').trim();
+      if (filter.startsWith('Minimum scheduled hours:')) {
+        return filter.replace('Minimum scheduled hours:', '').replace(' per week', '').trim();
+      }
+      if (filter.startsWith('Benefits waiting period:')) {
+        return `${filter.replace('Benefits waiting period:', '').trim()} wait`;
+      }
+      if (filter === 'Available to US employees only') return 'US employees only';
+      return filter;
+    };
+
+    const tokens = filters.map(toToken).filter(Boolean);
+    if (tokens.length === 0) return 'filters';
+    if (tokens.length === 1) return tokens[0];
+    if (tokens.length === 2) return `${tokens[0]}, ${tokens[1]}`;
+    return `${tokens[0]}, ${tokens[1]} +${tokens.length - 2}`;
+  };
+  const planVersionGroups = benefitPlanGroups.map((group) => ({
+    id: group.id,
+    label: group.label,
+    icon: group.icon,
+    plans: group.plans.map((plan) => {
+      const unifiedPlan = unifiedPlanById.get(plan.id);
+      const planYear = unifiedPlan?.effectiveDate?.split('/')[2] ?? unifiedPlan?.endDate?.split('/')[2] ?? plan.endDate.split('/')[2];
+
+      return {
+        id: plan.id,
+        name: plan.name,
+        type: group.label,
+        carrier: unifiedPlan?.carrierName ?? 'Unknown Carrier',
+        planYear,
+        isActive: planYear === (activeBenefitPlanYears[0]?.id ?? ''),
+        startDate: unifiedPlan?.effectiveDate ?? '--',
+        endDate: plan.endDate,
+        eligibilityFilters: buildEligibilityFilters(plan.eligibility),
+        eligibilitySummary: summarizeEligibilityFilters(buildEligibilityFilters(plan.eligibility)),
+        status: plan.status,
+      };
+    }),
+  })).filter((group) => group.plans.length > 0);
 
   const isPlanIncludedInPlanYear = (targetPlanYearId: string, planName: string, planType: string) => {
     const includedPlanIds = getIncludedPlanIdsForPlanYear(
@@ -203,6 +294,74 @@ export function Settings() {
   const handleDeletePlanYear = (planYearId: string) => {
     deletePlanYearById(planYearId);
     setOpenPlanYearActionsId(null);
+  };
+
+  const openSettingsPlanDetails = (plan: SettingsPlanDetails) => {
+    setActiveSettingsPlanDetails(plan);
+    const defaultVersionId = allBenefitPlanYears.find((planYear) => planYear.status === 'Active')?.id ?? allBenefitPlanYears[0]?.id ?? 'current';
+    setSelectedSettingsVersionId(defaultVersionId);
+    setHiddenSettingsVersionIds(new Set());
+    setOpenVersionActionsId(null);
+    setIsSettingsPlanDetailsOpen(true);
+  };
+
+  const closeSettingsPlanDetails = () => {
+    setIsSettingsPlanDetailsOpen(false);
+    setOpenVersionActionsId(null);
+  };
+
+  const settingsPlanVersions: SettingsPlanVersionDetails[] = !activeSettingsPlanDetails
+    ? []
+    : (allBenefitPlanYears.length > 0
+        ? allBenefitPlanYears
+        : [
+            {
+              id: 'current',
+              name: 'Current',
+              plans: 0,
+              status: 'Active' as const,
+              duration: '01/01/2026 - 12/31/2026',
+            },
+          ]
+      ).map((planYear, index) => ({
+        id: planYear.id,
+        versionLabel: planYear.status === 'Active' ? `${planYear.name} Active` : `${planYear.name} Inactive`,
+        effectiveStart: planYear.duration.split(' - ')[0] ?? '--',
+        effectiveEnd: planYear.duration.split(' - ')[1] ?? '--',
+        status: planYear.status === 'Active' ? 'Active' : 'Inactive',
+        planName: `${activeSettingsPlanDetails.name} ${index + 1}`,
+        carrier: 'UnitedHealthCare',
+        groupNumber: `A-${324589 + index * 279}`,
+        planType: activeSettingsPlanDetails.type,
+        planTypeId: index === 0 ? '--' : `HMO-${planYear.name.slice(-2)}`,
+        summary: index === 0 ? 'Low Deductible Plan Family Eligible' : 'Family and Employee Coverage',
+        description:
+          index === 0
+            ? 'The current active version gives employees flexibility to see trusted providers with broad coverage options.'
+            : `This inactive version for ${planYear.name} captures prior plan-year details and archived terms.`,
+        attachmentName: `PlanDoc-${planYear.id}.pdf`,
+      }));
+
+  const visibleSettingsPlanVersions = settingsPlanVersions.filter((version) => !hiddenSettingsVersionIds.has(version.id));
+  const selectedSettingsVersion =
+    visibleSettingsPlanVersions.find((version) => version.id === selectedSettingsVersionId) ?? visibleSettingsPlanVersions[0];
+  const shouldScrollPlanVersions = visibleSettingsPlanVersions.length > 4;
+  const isViewingOlderPlanVersion = selectedSettingsVersion?.status === 'Inactive';
+  const deleteSettingsVersion = (versionId: string) => {
+    setHiddenSettingsVersionIds((prev) => {
+      const next = new Set(prev);
+      next.add(versionId);
+      return next;
+    });
+    setOpenVersionActionsId(null);
+    if (selectedSettingsVersionId === versionId) {
+      const nextVersion = visibleSettingsPlanVersions.find((version) => version.id !== versionId);
+      setSelectedSettingsVersionId(nextVersion?.id ?? '');
+    }
+  };
+
+  const moveSettingsVersionToSeries = () => {
+    setOpenVersionActionsId(null);
   };
 
   return (
@@ -438,16 +597,18 @@ export function Settings() {
                 </div>
 
                 <div className="overflow-hidden">
-                  <div className="grid grid-cols-[1.3fr_0.7fr_0.8fr_1.1fr_120px] gap-4 px-4 py-3 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] text-[15px] font-semibold text-[var(--text-neutral-strong)] mb-2">
+                  <div className="grid grid-cols-[1.5fr_1fr_0.7fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-3 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] text-[15px] font-semibold text-[var(--text-neutral-strong)] mb-2">
                     <span>Plan Name</span>
-                    <span>End Date</span>
+                    <span>Carrier</span>
+                    <span>Plan Year</span>
+                    <span>Effective Dates</span>
                     <span>Eligibility</span>
                     <span>Status</span>
                     <span />
                   </div>
 
                   <div className="space-y-3">
-                    {benefitPlanGroups.map((group) => (
+                    {planVersionGroups.map((group) => (
                       <div key={group.id}>
                         <div className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] mb-1">
                           <Icon name={group.icon} size={14} className="text-[var(--icon-neutral-strong)]" />
@@ -456,11 +617,58 @@ export function Settings() {
                         {group.plans.map((plan) => (
                           <div
                             key={plan.id}
-                            className="group grid grid-cols-[1.3fr_0.7fr_0.8fr_1.1fr_120px] gap-4 px-4 py-5 border-b border-[var(--border-neutral-xx-weak)] transition-colors hover:bg-[var(--surface-neutral-xx-weak)]"
+                            className="group grid grid-cols-[1.5fr_1fr_0.7fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-5 border-b border-[var(--border-neutral-xx-weak)] transition-colors hover:bg-[var(--surface-neutral-xx-weak)]"
                           >
-                            <button className="text-left text-[15px] text-[#0b4fd1] hover:underline">{plan.name}</button>
-                            <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.endDate}</span>
-                            <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.eligibility}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openSettingsPlanDetails({
+                                  id: plan.id,
+                                  name: plan.name,
+                                  type: plan.type,
+                                  endDate: plan.endDate,
+                                })
+                              }
+                              className="text-left text-[15px] text-[#0b4fd1] hover:underline"
+                            >
+                              <span>{plan.name}</span>
+                              <span className={`block text-[12px] leading-[16px] ${plan.isActive ? 'text-[#15803d]' : 'text-[var(--text-neutral-weak)]'}`}>
+                                {plan.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </button>
+                            <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.carrier}</span>
+                            <span>
+                              <span className="inline-flex items-center justify-center h-7 px-3 rounded-[999px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-xx-weak)] text-[13px] font-medium text-[var(--text-neutral-strong)]">
+                                {plan.planYear}
+                              </span>
+                            </span>
+                            <div className="text-[15px] text-[var(--text-neutral-strong)] leading-[20px]">
+                              <div>{plan.startDate}</div>
+                              <div className="text-[var(--text-neutral-medium)]">{plan.endDate}</div>
+                            </div>
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setOpenEligibilityPlanId((prev) => (prev === plan.id ? null : plan.id))}
+                                className="text-left text-[14px] text-[var(--text-neutral-medium)] hover:text-[var(--text-neutral-strong)]"
+                              >
+                                {plan.eligibilitySummary}
+                              </button>
+                              {openEligibilityPlanId === plan.id && (
+                                <div className="absolute left-0 top-7 z-30 w-[280px] rounded-[10px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] p-3 shadow-[0_6px_16px_rgba(0,0,0,0.12)]">
+                                  <p className="mb-2 text-[13px] font-semibold text-[var(--text-neutral-strong)]">
+                                    Eligibility Filters
+                                  </p>
+                                  <ul className="space-y-1">
+                                    {plan.eligibilityFilters.map((filter) => (
+                                      <li key={filter} className="text-[13px] leading-[18px] text-[var(--text-neutral-medium)]">
+                                        {filter}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                             <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.status}</span>
                             <div className="flex items-center justify-end gap-[6px]">
                               <div className="relative">
@@ -468,7 +676,7 @@ export function Settings() {
                                   aria-label="renew plan"
                                   onClick={() => {
                                     setRenewingPlanName(plan.name);
-                                    setRenewingPlanType(group.label);
+                                    setRenewingPlanType(plan.type);
                                     setSelectedRenewOption('');
                                     setPlanYearCreationMode('existing');
                                     setSelectedSourcePlanYearId('');
@@ -1052,6 +1260,214 @@ export function Settings() {
                 className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
               >
                 Continue
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {isSettingsPlanDetailsOpen && activeSettingsPlanDetails && (
+        <div className="fixed inset-0 z-[60] bg-[#605b58]/95 p-8" onClick={closeSettingsPlanDetails}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${activeSettingsPlanDetails.name} Details`}
+            onClick={(event) => event.stopPropagation()}
+            className="h-full w-full rounded-[16px] bg-[var(--surface-neutral-xx-weak)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col"
+          >
+            <header className="h-[84px] px-8 border-b border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] flex items-center justify-between">
+              <h2
+                className="text-[44px] font-semibold text-[var(--color-primary-strong)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '38px' }}
+              >
+                {activeSettingsPlanDetails.name}
+              </h2>
+              <button
+                type="button"
+                onClick={closeSettingsPlanDetails}
+                className="size-10 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[var(--text-neutral-strong)] flex items-center justify-center bg-[var(--surface-neutral-white)] shadow-[var(--shadow-100)]"
+                aria-label="Close"
+              >
+                <Icon name="xmark" size={16} />
+              </button>
+            </header>
+
+            <div className="flex-1 min-h-0 px-8 py-6 flex flex-col gap-6">
+              <div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[15px] font-medium leading-[22px] text-[var(--text-neutral-medium)]">Plan History</p>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-[15px] font-medium leading-[22px] text-[var(--text-neutral-medium)] hover:text-[var(--text-neutral-strong)]"
+                  >
+                    <Icon name="link" size={16} />
+                    Link Old Version
+                  </button>
+                </div>
+                <div className={`mt-3 ${shouldScrollPlanVersions ? 'overflow-x-auto pb-1' : ''}`}>
+                  <div className={`flex items-stretch gap-4 ${shouldScrollPlanVersions ? 'min-w-max' : 'w-full'}`}>
+                  {visibleSettingsPlanVersions.map((version) => {
+                    const isSelected = selectedSettingsVersion?.id === version.id;
+                    return (
+                      <div
+                        key={version.id}
+                        className={`h-[86px] rounded-[16px] border bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-5 text-left ${
+                          shouldScrollPlanVersions ? 'w-[300px] shrink-0' : 'flex-1 min-w-0'
+                        } ${
+                          isSelected ? 'border-[var(--color-primary-medium)]' : 'border-[var(--border-neutral-x-weak)]'
+                        } relative group`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSettingsVersionId(version.id)}
+                          className="h-full w-full pr-8 text-left"
+                        >
+                          <p
+                            className={`text-[16px] leading-[24px] whitespace-nowrap overflow-hidden text-ellipsis ${
+                              isSelected ? 'font-bold text-[var(--color-primary-strong)]' : 'font-medium text-[var(--text-neutral-strong)]'
+                            }`}
+                            title={version.versionLabel}
+                          >
+                            {version.versionLabel}
+                          </p>
+                          <p className="text-[15px] leading-[22px] text-[var(--text-neutral-strong)] whitespace-nowrap overflow-hidden text-ellipsis">
+                            {version.effectiveStart} - {version.effectiveEnd}
+                          </p>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Version actions"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenVersionActionsId((prev) => (prev === version.id ? null : version.id));
+                          }}
+                          className="absolute top-3 right-3 h-7 w-7 rounded-[999px] border border-transparent text-[var(--icon-neutral-strong)] opacity-0 transition-opacity group-hover:opacity-100 hover:border-[var(--border-neutral-medium)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                        >
+                          <Icon name="ellipsis" size={14} />
+                        </button>
+                        {openVersionActionsId === version.id && (
+                          <div className="absolute right-3 top-11 z-40 min-w-[200px] rounded-[10px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] p-1 shadow-[0_6px_16px_rgba(0,0,0,0.12)]">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                moveSettingsVersionToSeries();
+                              }}
+                              className="block w-full rounded-[8px] px-3 py-2 text-left text-[14px] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                            >
+                              Move to different series
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                deleteSettingsVersion(version.id);
+                              }}
+                              className="block w-full rounded-[8px] px-3 py-2 text-left text-[14px] text-[#b42318] hover:bg-[#fff3f2]"
+                            >
+                              Delete version
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                </div>
+              </div>
+
+              <section className="flex-1 min-h-0 rounded-[16px] bg-[var(--surface-neutral-white)] border border-[var(--border-neutral-x-weak)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] p-6 flex gap-8 overflow-hidden">
+                <aside className="w-[260px] shrink-0 border-r border-[var(--border-neutral-x-weak)] pr-6">
+                  <div className="space-y-1 text-[var(--text-neutral-strong)]">
+                    <div className="h-10 rounded-[8px] bg-[var(--surface-neutral-xx-weak)] px-3 flex items-center text-[14px] font-semibold text-[var(--color-primary-strong)]">
+                      Plan Details
+                    </div>
+                    <div className="h-9 px-3 flex items-center text-[15px]">Coverage Options</div>
+                    <div className="h-9 px-3 flex items-center text-[15px]">Premium Type</div>
+                    <div className="h-9 px-3 flex items-center text-[15px]">Eligibility and Cost</div>
+                    <div className="h-9 px-3 flex items-center text-[15px]">Employment Details</div>
+                    <div className="h-9 px-3 flex items-center text-[15px]">Payroll Deductions</div>
+                  </div>
+                </aside>
+
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  {isViewingOlderPlanVersion && (
+                    <div className="mb-3 rounded-[8px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-xx-weak)] px-3 py-2 text-[13px] leading-[18px] text-[var(--text-neutral-medium)]">
+                      You are viewing an older version of this plan.
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="size-9 rounded-[10px] bg-[var(--surface-neutral-xx-weak)] flex items-center justify-center text-[var(--color-primary-strong)]">
+                        <Icon name="table-cells" size={16} />
+                      </span>
+                      <h3 className="text-[21px] font-semibold text-[var(--color-primary-strong)]" style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '26px' }}>
+                        Plan Details
+                      </h3>
+                    </div>
+                    <button className="h-8 px-4 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
+                      Edit
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-[var(--text-neutral-x-strong)]">
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Name</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.planName}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Carrier</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.carrier}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Group Number</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.groupNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Type</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.planType}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Type ID</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.planTypeId}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Summary</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.summary}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Description</p>
+                      <p className="text-[15px] leading-[22px]">{selectedSettingsVersion?.description}</p>
+                    </div>
+                    <div>
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Attachments</p>
+                      <button
+                        type="button"
+                        className="mt-2 h-10 px-4 rounded-[12px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[#0b4fd1] text-[15px] leading-[22px] shadow-[var(--shadow-100)] inline-flex items-center gap-2"
+                      >
+                        {selectedSettingsVersion?.attachmentName}
+                        <Icon name="paperclip" size={14} className="text-[var(--text-neutral-strong)]" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <footer className="h-[108px] px-8 border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] flex items-center gap-4">
+              <button
+                type="button"
+                onClick={closeSettingsPlanDetails}
+                className="h-10 px-6 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={closeSettingsPlanDetails}
+                className="h-10 px-1 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
+              >
+                Cancel
               </button>
             </footer>
           </div>
