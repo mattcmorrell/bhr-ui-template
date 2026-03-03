@@ -235,3 +235,30 @@ h1 {
   --radius-large: 24px;
   --radius-full: 1000px;
 }
+
+/* Plan years horizontal scroller: hide bar by default, show while actively scrolling */
+.benefits-plan-years-scroll {
+  scrollbar-width: none;
+}
+
+.benefits-plan-years-scroll::-webkit-scrollbar {
+  height: 0;
+}
+
+.benefits-plan-years-scroll.is-scrolling {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-neutral-medium) transparent;
+}
+
+.benefits-plan-years-scroll.is-scrolling::-webkit-scrollbar {
+  height: 8px;
+}
+
+.benefits-plan-years-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--border-neutral-medium);
+  border-radius: 999px;
+}
+
+.benefits-plan-years-scroll.is-scrolling::-webkit-scrollbar-track {
+  background: transparent;
+}

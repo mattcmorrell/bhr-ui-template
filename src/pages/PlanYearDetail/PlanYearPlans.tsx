@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Button, Icon } from '../../components';
+import { Button, Dropdown, Icon } from '../../components';
 import {
   defaultIncludedPlanIdsByYear,
   planYearCarrierOptions,
@@ -8,13 +8,12 @@ import {
 } from '../../data/benefitPlansCatalog';
 import { benefitPlanYears } from '../../data/settingsData';
 import {
+  addCustomPlanForPlanYear,
   getBenefitPlanYearsWithCustom,
   getCustomPlansForPlanYear,
   getIncludedPlanIdsForPlanYear,
-  getPlanReviewDecisionsForPlanYear,
   getSelectedCarrierIdsForPlanYear,
   setIncludedPlanIdsForPlanYear,
-  setPlanReviewDecisionsForPlanYear,
 } from './planYearWizardState';
 import { PlanYearWizardLayout } from './PlanYearWizardLayout';
 
@@ -25,6 +24,7 @@ interface PlanOption {
   effectiveDate: string;
   currentEndDate: string;
   previousPlanYear: string;
+  isRenewed?: boolean;
   isNew?: boolean;
 }
 
@@ -32,20 +32,6 @@ interface CarrierPlansGroup {
   carrierId: string;
   carrierName: string;
   plans: PlanOption[];
-}
-
-interface PlanVersionDetails {
-  id: string;
-  label: string;
-  status: 'Active' | 'Inactive';
-  planName: string;
-  carrier: string;
-  groupNumber: string;
-  planType: string;
-  planTypeId: string;
-  summary: string;
-  description: string;
-  attachmentName: string;
 }
 
 const PLAN_OPTIONS_BY_CARRIER: Record<string, PlanOption[]> = Object.fromEntries(
@@ -58,6 +44,7 @@ const PLAN_OPTIONS_BY_CARRIER: Record<string, PlanOption[]> = Object.fromEntries
       effectiveDate: plan.effectiveDate,
       currentEndDate: plan.endDate,
       previousPlanYear: plan.mostRecentPlanYear,
+      isRenewed: true,
     })),
   ]),
 );
@@ -69,12 +56,13 @@ export function PlanYearPlans() {
   const allPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
   const selectedPlanYear = allPlanYears.find((planYear) => planYear.id === planYearId);
   const hasPresetDefaults = benefitPlanYears.some((planYear) => planYear.id === planYearId);
+  const isFirstTimePlanYearSetup = !selectedPlanYear;
   const planYearName = selectedPlanYear?.name ?? planYearId ?? 'Plan Year';
-  const activePlanYears = allPlanYears.filter((planYear) => planYear.status === 'Active');
-  const defaultPlanVersionId = activePlanYears[0]?.id ?? selectedPlanYear?.id ?? 'current';
 
   const [isAddExistingPlansOpen, setIsAddExistingPlansOpen] = useState(false);
-  const [isPlanDetailsOpen, setIsPlanDetailsOpen] = useState(false);
+  const [isCreatePlanChoiceOpen, setIsCreatePlanChoiceOpen] = useState(false);
+  const [createPlanMode, setCreatePlanMode] = useState<'scratch' | 'template'>('scratch');
+  const [selectedTemplatePlanId, setSelectedTemplatePlanId] = useState('');
   const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
   const [includedPlanIds, setIncludedPlanIds] = useState<string[]>(
     () =>
@@ -83,11 +71,7 @@ export function PlanYearPlans() {
         hasPresetDefaults ? (defaultIncludedPlanIdsByYear[planYearId] ?? []) : [],
       ),
   );
-  const [activePlanDetails, setActivePlanDetails] = useState<PlanOption | null>(null);
-  const [selectedVersionId, setSelectedVersionId] = useState(defaultPlanVersionId);
-  const [planReviewDecisions, setPlanReviewDecisions] = useState<Record<string, 'confirm-as-is' | 'make-changes'>>(
-    () => getPlanReviewDecisionsForPlanYear(planYearId),
-  );
+  const [openPlanActionsId, setOpenPlanActionsId] = useState<string | null>(null);
   const [isRenewConfirmationVisible, setIsRenewConfirmationVisible] = useState(
     Boolean((location.state as { renewedPlanName?: string } | null)?.renewedPlanName),
   );
@@ -134,6 +118,7 @@ export function PlanYearPlans() {
               effectiveDate: plan.effectiveDate,
               currentEndDate: plan.endDate,
               previousPlanYear: 'New',
+              isRenewed: plan.source === 'renewed',
               isNew: plan.source === 'renewed',
             })),
         ],
@@ -172,34 +157,22 @@ export function PlanYearPlans() {
         .filter((group) => group.plans.length > 0),
     [groupedPlanOptions, includedPlanIds],
   );
+  const templatePlanOptions = useMemo(
+    () =>
+      groupedPlanOptions.flatMap((group) =>
+        group.plans
+          .filter((plan) => !plan.isNew)
+          .map((plan) => ({
+            value: `${group.carrierId}::${plan.id}`,
+            label: `${plan.name} (${group.carrierName})`,
+          })),
+      ),
+    [groupedPlanOptions],
+  );
 
   const selectedCount = selectedPlanIds.length;
   const allSelected = allSelectablePlanIds.length > 0 && selectedCount === allSelectablePlanIds.length;
   const hasIncludedPlans = includedPlanIds.length > 0;
-  const reviewedPlansCount = includedPlanIds.filter((planId) => Boolean(planReviewDecisions[planId])).length;
-  const remainingReviewCount = Math.max(0, includedPlanIds.length - reviewedPlansCount);
-  const allIncludedPlansReviewed = hasIncludedPlans && remainingReviewCount === 0;
-
-  useEffect(() => {
-    const includedSet = new Set(includedPlanIds);
-    const filteredDecisions: Record<string, 'confirm-as-is' | 'make-changes'> = {};
-
-    Object.entries(planReviewDecisions).forEach(([planId, decision]) => {
-      if (includedSet.has(planId)) filteredDecisions[planId] = decision;
-    });
-
-    const hasChanges =
-      Object.keys(filteredDecisions).length !== Object.keys(planReviewDecisions).length ||
-      Object.entries(filteredDecisions).some(([planId, decision]) => planReviewDecisions[planId] !== decision);
-
-    if (hasChanges) {
-      setPlanReviewDecisions(filteredDecisions);
-      setPlanReviewDecisionsForPlanYear(planYearId, filteredDecisions);
-      return;
-    }
-
-    setPlanReviewDecisionsForPlanYear(planYearId, filteredDecisions);
-  }, [includedPlanIds, planReviewDecisions, planYearId]);
 
   const togglePlan = (planId: string) => {
     setSelectedPlanIds((current) =>
@@ -230,18 +203,40 @@ export function PlanYearPlans() {
   };
 
   const openCreatePlan = () => {
+    if (isFirstTimePlanYearSetup && !hasIncludedPlans) {
+      setCreatePlanMode('scratch');
+      setSelectedTemplatePlanId('');
+      setIsCreatePlanChoiceOpen(true);
+      return;
+    }
     navigate(`/settings/plan-years/${planYearId}/plans/create`);
   };
 
-  const choosePlanReviewDecision = (planId: string, decision: 'confirm-as-is' | 'make-changes') => {
-    setPlanReviewDecisions((current) => {
-      const next = {
-        ...current,
-        [planId]: decision,
-      };
-      setPlanReviewDecisionsForPlanYear(planYearId, next);
-      return next;
+  const continueCreatePlan = () => {
+    if (createPlanMode === 'scratch') {
+      setIsCreatePlanChoiceOpen(false);
+      navigate(`/settings/plan-years/${planYearId}/plans/create?source=scratch`);
+      return;
+    }
+
+    if (!selectedTemplatePlanId) return;
+
+    const [templateCarrierId, templatePlanId] = selectedTemplatePlanId.split('::');
+    const group = groupedPlanOptions.find((entry) => entry.carrierId === templateCarrierId);
+    const templatePlan = group?.plans.find((plan) => plan.id === templatePlanId);
+    if (!templatePlan) return;
+
+    const params = new URLSearchParams({
+      source: 'template',
+      templatePlanId: templatePlan.id,
+      templateCarrierId,
+      templateName: templatePlan.name,
+      templateType: templatePlan.type,
+      templateEffectiveDate: templatePlan.effectiveDate,
+      templateEndDate: templatePlan.currentEndDate,
     });
+    setIsCreatePlanChoiceOpen(false);
+    navigate(`/settings/plan-years/${planYearId}/plans/create?${params.toString()}`);
   };
 
   const openEditPlan = (plan: PlanOption, carrierId: string) => {
@@ -253,6 +248,29 @@ export function PlanYearPlans() {
     navigate(`/settings/plan-years/${planYearId}/plans/edit/${encodeURIComponent(plan.id)}?${params.toString()}`);
   };
 
+  const duplicatePlan = (plan: PlanOption, carrierId: string) => {
+    const duplicateId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const duplicateName = `${plan.name} Copy`;
+    addCustomPlanForPlanYear(planYearId, {
+      id: duplicateId,
+      carrierId,
+      name: duplicateName,
+      type: plan.type,
+      effectiveDate: plan.effectiveDate,
+      endDate: plan.currentEndDate,
+      summary: `${plan.type} copied from existing plan`,
+      status: 'Active',
+      source: 'created',
+    });
+
+    setIncludedPlanIds((current) => {
+      const nextIncludedPlanIds = Array.from(new Set([...current, duplicateId]));
+      setIncludedPlanIdsForPlanYear(planYearId, nextIncludedPlanIds);
+      return nextIncludedPlanIds;
+    });
+    setOpenPlanActionsId(null);
+  };
+
   const addSelectedPlans = () => {
     if (selectedCount === 0) return;
     const nextIncludedPlanIds = Array.from(new Set([...includedPlanIds, ...selectedPlanIds]));
@@ -260,64 +278,6 @@ export function PlanYearPlans() {
     setIncludedPlanIdsForPlanYear(planYearId, nextIncludedPlanIds);
     setIsAddExistingPlansOpen(false);
   };
-
-  const openPlanDetails = (plan: PlanOption) => {
-    setActivePlanDetails(plan);
-    setSelectedVersionId(defaultPlanVersionId);
-    setIsPlanDetailsOpen(true);
-  };
-
-  const closePlanDetails = () => {
-    setIsPlanDetailsOpen(false);
-  };
-
-  const planVersions = useMemo<PlanVersionDetails[]>(() => {
-    if (!activePlanDetails) return [];
-    const type = activePlanDetails.type === '[Plan Type]' ? 'HMO' : activePlanDetails.type;
-    const baseName =
-      activePlanDetails.name === '[Plan Name]' ? 'Medical Plan' : activePlanDetails.name;
-
-    if (activePlanYears.length === 0) {
-      return [
-        {
-          id: defaultPlanVersionId,
-          label: selectedPlanYear?.duration ?? 'Current Plan Year',
-          status: 'Active',
-          planName: `${baseName} Plan Name 1`,
-          carrier: 'UnitedHealthCare',
-          groupNumber: 'A-324589',
-          planType: type,
-          planTypeId: '--',
-          summary: 'Low Deductible Plan Family Eligible',
-          description:
-            'The current plan year version includes in-network and out-of-network options with preventive care coverage.',
-          attachmentName: `PlanDoc-${defaultPlanVersionId}.pdf`,
-        },
-      ];
-    }
-
-    return activePlanYears.map((planYear, index) => ({
-      id: planYear.id,
-      label: planYear.duration,
-      status: 'Active' as const,
-      planName: `${baseName} ${planYear.name}`,
-      carrier: 'UnitedHealthCare',
-      groupNumber: `A-${324589 + index * 279}`,
-      planType: type,
-      planTypeId: index === 0 ? '--' : `HMO-${planYear.name.slice(-2)}`,
-      summary: index === 0 ? 'Low Deductible Plan Family Eligible' : 'Family and Employee Coverage',
-      description:
-        index === 0
-          ? 'The current active version gives employees flexibility to see trusted providers with broad coverage options.'
-          : `This active plan year version for ${planYear.name} includes balanced deductibles and preventive care benefits.`,
-      attachmentName: `PlanDoc-${planYear.id}.pdf`,
-    }));
-  }, [activePlanDetails, activePlanYears, defaultPlanVersionId, selectedPlanYear?.duration]);
-
-  const selectedVersionDetails = useMemo(
-    () => planVersions.find((version) => version.id === selectedVersionId) ?? planVersions[0],
-    [planVersions, selectedVersionId],
-  );
 
   return (
     <PlanYearWizardLayout activeStep="plans">
@@ -391,8 +351,7 @@ export function PlanYearPlans() {
                 <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Plan Name</p>
                 <p className="w-[197px] text-[15px] font-semibold text-[var(--text-neutral-strong)]">Type</p>
                 <p className="flex-1 text-[15px] font-semibold text-[var(--text-neutral-strong)]">Effective Dates</p>
-                <p className="w-[320px] text-[15px] font-semibold text-[var(--text-neutral-strong)]">Plan Decision</p>
-                <p className="w-[60px]" />
+                <p className="w-[140px] text-[15px] font-semibold text-[var(--text-neutral-strong)] text-right">Actions</p>
               </div>
 
               <div className="mt-1 flex-1 min-h-0 overflow-y-auto pr-1">
@@ -404,18 +363,11 @@ export function PlanYearPlans() {
 
                     <div>
                       {group.plans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          className="group h-[64px] border-b border-[var(--border-neutral-xx-weak)] px-4 flex items-center"
-                        >
+                        <div key={plan.id} className="group h-[64px] border-b border-[var(--border-neutral-xx-weak)] px-4 flex items-center">
                           <div className="flex-1 min-w-0 pr-4">
-                            <button
-                              type="button"
-                              onClick={() => openPlanDetails(plan)}
-                              className="text-[15px] font-normal leading-[22px] text-[#0b4fd1] truncate text-left hover:underline"
-                            >
+                            <p className="text-[15px] font-normal leading-[22px] text-[var(--text-neutral-x-strong)] truncate">
                               {plan.name}
-                            </button>
+                            </p>
                           </div>
 
                           <div className="w-[197px] pr-4">
@@ -425,54 +377,65 @@ export function PlanYearPlans() {
                           </div>
 
                           <div className="flex-1 pr-4">
-                            <p className="text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] truncate">
-                              {plan.effectiveDate} - {plan.currentEndDate}
-                            </p>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <p className="text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] truncate">
+                                {plan.effectiveDate} - {plan.currentEndDate}
+                              </p>
+                              {plan.isRenewed && isFirstTimePlanYearSetup && (
+                                <div className="relative group/renewed shrink-0">
+                                  <span className="inline-flex items-center h-6 px-2 rounded-[999px] bg-[#eaf5e6] text-[12px] font-semibold leading-[16px] text-[var(--color-primary-strong)]">
+                                    Renewing
+                                  </span>
+                                  <div className="pointer-events-none absolute left-0 top-7 z-30 w-[320px] rounded-[10px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] px-3 py-2 text-[13px] leading-[18px] text-[var(--text-neutral-medium)] shadow-[0_6px_16px_rgba(0,0,0,0.12)] opacity-0 transition-opacity group-hover/renewed:opacity-100">
+                                    This plan is being renewed into this plan year. Effective dates will be updated to match the selected plan year dates.
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="w-[320px] flex items-center gap-2">
+                          <div className="w-[140px] flex items-center justify-end gap-2">
                             <button
                               type="button"
-                              onClick={() => choosePlanReviewDecision(plan.id, 'confirm-as-is')}
-                              className={`h-9 px-3 rounded-[999px] border text-[13px] font-semibold leading-[18px] transition-colors ${
-                                planReviewDecisions[plan.id] === 'confirm-as-is'
-                                  ? 'border-[var(--color-primary-strong)] bg-[#dff2da] text-[var(--color-primary-strong)]'
-                                  : 'border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]'
-                              }`}
+                              onClick={() => openEditPlan(plan, group.carrierId)}
+                              className="size-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--icon-neutral-strong)] shadow-[var(--shadow-100)] hover:bg-[var(--surface-neutral-xx-weak)] flex items-center justify-center"
+                              aria-label={`Edit ${plan.name}`}
                             >
-                              Confirm as Is
+                              <Icon name="pen-to-square" size={13} />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => choosePlanReviewDecision(plan.id, 'make-changes')}
-                              className={`h-9 px-3 rounded-[999px] border text-[13px] font-semibold leading-[18px] transition-colors ${
-                                planReviewDecisions[plan.id] === 'make-changes'
-                                  ? 'border-[#996700] bg-[#fff3cf] text-[#7a5100]'
-                                  : 'border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]'
-                              }`}
-                            >
-                              Make Changes
-                            </button>
-                            {planReviewDecisions[plan.id] === 'make-changes' && (
+                            <div className="relative">
                               <button
                                 type="button"
-                                onClick={() => openEditPlan(plan, group.carrierId)}
-                                className="h-9 px-3 rounded-[999px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[13px] font-semibold leading-[18px] text-[#0b4fd1] hover:bg-[var(--surface-neutral-xx-weak)]"
+                                onClick={() =>
+                                  setOpenPlanActionsId((current) => (current === plan.id ? null : plan.id))
+                                }
+                                className="size-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--icon-neutral-strong)] shadow-[var(--shadow-100)] hover:bg-[var(--surface-neutral-xx-weak)] flex items-center justify-center"
+                                aria-label={`More actions for ${plan.name}`}
                               >
-                                Edit
+                                <Icon name="ellipsis" size={13} />
                               </button>
-                            )}
-                          </div>
-
-                          <div className="w-[60px] flex items-center justify-end">
-                            <button
-                              type="button"
-                              onClick={() => removeIncludedPlan(plan.id)}
-                              className="size-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[var(--text-neutral-strong)] shadow-[var(--shadow-100)] text-[16px] leading-none flex items-center justify-center"
-                              aria-label={`Remove ${plan.name}`}
-                            >
-                              -
-                            </button>
+                              {openPlanActionsId === plan.id && (
+                                <div className="absolute right-0 top-10 z-30 min-w-[170px] rounded-[12px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] p-1 shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)]">
+                                  <button
+                                    type="button"
+                                    onClick={() => duplicatePlan(plan, group.carrierId)}
+                                    className="w-full rounded-[8px] px-3 py-2 text-left text-[14px] font-medium text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                                  >
+                                    Duplicate plan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeIncludedPlan(plan.id);
+                                      setOpenPlanActionsId(null);
+                                    }}
+                                    className="w-full rounded-[8px] px-3 py-2 text-left text-[14px] font-medium text-[#b42318] hover:bg-[#fff3f2]"
+                                  >
+                                    Delete plan
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -494,17 +457,12 @@ export function PlanYearPlans() {
           </button>
 
           <div className="flex items-center gap-4">
-            {hasIncludedPlans && !allIncludedPlansReviewed && (
-              <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">
-                Review remaining plans: {remainingReviewCount}
-              </p>
-            )}
             <button
               type="button"
               onClick={() => navigate(`/settings/plan-years/${planYearId}/open-enrollment`)}
-              disabled={!allIncludedPlansReviewed}
+              disabled={!hasIncludedPlans}
               className={`h-12 px-9 rounded-[var(--radius-full)] text-[18px] font-semibold leading-[26px] shadow-[var(--shadow-100)] ${
-                allIncludedPlansReviewed
+                hasIncludedPlans
                   ? 'bg-[var(--color-primary-strong)] text-white'
                   : 'bg-[var(--surface-neutral-medium)] text-white cursor-not-allowed'
               }`}
@@ -649,25 +607,22 @@ export function PlanYearPlans() {
         </div>
       )}
 
-      {isPlanDetailsOpen && activePlanDetails && (
-        <div className="fixed inset-0 z-[60] bg-[#605b58]/95 p-8" onClick={closePlanDetails}>
+      {isCreatePlanChoiceOpen && (
+        <div className="fixed inset-0 z-[55] bg-[#605b58]/95 px-8 py-8" onClick={() => setIsCreatePlanChoiceOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={`${activePlanDetails.name} Details`}
+            aria-label="Create New Plan"
             onClick={(event) => event.stopPropagation()}
-            className="h-full w-full rounded-[16px] bg-[var(--surface-neutral-xx-weak)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden flex flex-col"
+            className="mx-auto mt-12 w-full max-w-[760px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] border border-[var(--border-neutral-x-weak)] overflow-hidden"
           >
             <header className="h-[84px] px-8 border-b border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] flex items-center justify-between">
-              <h2
-                className="text-[44px] font-semibold text-[var(--color-primary-strong)]"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '38px' }}
-              >
-                {activePlanDetails.name}
+              <h2 className="text-[32px] font-semibold text-[var(--color-primary-strong)]" style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '36px' }}>
+                Create New Plan
               </h2>
               <button
                 type="button"
-                onClick={closePlanDetails}
+                onClick={() => setIsCreatePlanChoiceOpen(false)}
                 className="size-10 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[var(--text-neutral-strong)] flex items-center justify-center bg-[var(--surface-neutral-white)] shadow-[var(--shadow-100)]"
                 aria-label="Close"
               >
@@ -675,132 +630,108 @@ export function PlanYearPlans() {
               </button>
             </header>
 
-            <div className="flex-1 min-h-0 px-8 py-6 flex flex-col gap-6">
-              <div>
-                <p className="text-[15px] font-medium leading-[22px] text-[var(--text-neutral-medium)]">Plan Versions</p>
-                <div className="mt-3 grid grid-cols-[1fr_1fr_1fr_auto] gap-4">
-                  {planVersions.map((version) => {
-                    const isSelected = selectedVersionDetails?.id === version.id;
-                    return (
-                      <button
-                        key={version.id}
-                        type="button"
-                        onClick={() => setSelectedVersionId(version.id)}
-                        className={`h-[86px] rounded-[16px] border bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-5 text-left ${
-                          isSelected ? 'border-[var(--color-primary-medium)]' : 'border-[var(--border-neutral-x-weak)]'
-                        }`}
-                      >
-                        <p
-                          className={`text-[16px] leading-[24px] ${
-                            isSelected ? 'font-bold text-[var(--color-primary-strong)]' : 'font-medium text-[var(--text-neutral-strong)]'
-                          }`}
-                        >
-                          {version.label}
-                        </p>
-                        <p className="text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">{version.status}</p>
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    className="h-[86px] rounded-[16px] border border-dashed border-[var(--border-neutral-weak)] bg-[var(--surface-neutral-white)] px-6 flex items-center gap-3 text-[var(--text-neutral-strong)]"
+            <div className="px-8 py-7 space-y-5">
+              <p className="text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
+                How would you like to start this plan?
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setCreatePlanMode('scratch')}
+                  className={`h-[104px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                    createPlanMode === 'scratch'
+                      ? 'border-[var(--color-primary-medium)]'
+                      : 'border-[var(--border-neutral-x-weak)]'
+                  }`}
+                >
+                  <span
+                    className={`size-12 rounded-[14px] flex items-center justify-center ${
+                      createPlanMode === 'scratch'
+                        ? 'bg-[var(--color-primary-strong)] text-white'
+                        : 'bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)]'
+                    }`}
                   >
-                    <Icon name="link" size={20} />
-                    <span className="text-[16px] font-medium leading-[24px] whitespace-nowrap">Link Old Version</span>
-                  </button>
-                </div>
+                    <Icon name="circle-plus-lined" size={20} />
+                  </span>
+                  <span className="text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
+                    Start from
+                    <br />
+                    Scratch
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCreatePlanMode('template')}
+                  className={`h-[104px] rounded-[16px] border px-6 flex items-center gap-5 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
+                    createPlanMode === 'template'
+                      ? 'border-[var(--color-primary-medium)]'
+                      : 'border-[var(--border-neutral-x-weak)]'
+                  }`}
+                >
+                  <span
+                    className={`size-12 rounded-[14px] flex items-center justify-center ${
+                      createPlanMode === 'template'
+                        ? 'bg-[var(--color-primary-strong)] text-white'
+                        : 'bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)]'
+                    }`}
+                  >
+                    <Icon name="sparkles" size={20} />
+                  </span>
+                  <span className="text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
+                    Use Different Plan
+                    <br />
+                    as Template
+                  </span>
+                </button>
               </div>
 
-              <section className="flex-1 min-h-0 rounded-[16px] bg-[var(--surface-neutral-white)] border border-[var(--border-neutral-x-weak)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] p-6 flex gap-8 overflow-hidden">
-                <aside className="w-[260px] shrink-0 border-r border-[var(--border-neutral-x-weak)] pr-6">
-                  <div className="space-y-1 text-[var(--text-neutral-strong)]">
-                    <div className="h-10 rounded-[8px] bg-[var(--surface-neutral-xx-weak)] px-3 flex items-center text-[14px] font-semibold text-[var(--color-primary-strong)]">
-                      Plan Details
-                    </div>
-                    <div className="h-9 px-3 flex items-center text-[15px]">Coverage Options</div>
-                    <div className="h-9 px-3 flex items-center text-[15px]">Premium Type</div>
-                    <div className="h-9 px-3 flex items-center text-[15px]">Eligibility and Cost</div>
-                    <div className="h-9 px-3 flex items-center text-[15px]">Employment Details</div>
-                    <div className="h-9 px-3 flex items-center text-[15px]">Payroll Deductions</div>
-                  </div>
-                </aside>
-
-                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="size-9 rounded-[10px] bg-[var(--surface-neutral-xx-weak)] flex items-center justify-center text-[var(--color-primary-strong)]">
-                        <Icon name="table-cells" size={16} />
-                      </span>
-                      <h3 className="text-[21px] font-semibold text-[var(--color-primary-strong)]" style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '26px' }}>
-                        Plan Details
-                      </h3>
-                    </div>
-                    <Button variant="standard" size="small">Edit</Button>
-                  </div>
-
-                  <div className="space-y-4 text-[var(--text-neutral-x-strong)]">
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Name</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.planName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Carrier</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.carrier}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Group Number</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.groupNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Type</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.planType}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Plan Type ID</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.planTypeId}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Summary</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.summary}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Description</p>
-                      <p className="text-[15px] leading-[22px]">{selectedVersionDetails?.description}</p>
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">Attachments</p>
-                      <button
-                        type="button"
-                        className="mt-2 h-10 px-4 rounded-[12px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] text-[#0b4fd1] text-[15px] leading-[22px] shadow-[var(--shadow-100)] inline-flex items-center gap-2"
-                      >
-                        {selectedVersionDetails?.attachmentName}
-                        <Icon name="paperclip" size={14} className="text-[var(--text-neutral-strong)]" />
-                      </button>
-                    </div>
-                  </div>
+              {createPlanMode === 'template' && (
+                <div className="w-[500px]">
+                  <Dropdown
+                    label="Template plan"
+                    options={templatePlanOptions.length > 0 ? templatePlanOptions : [{ value: '', label: 'No templates available' }]}
+                    value={selectedTemplatePlanId}
+                    onChange={setSelectedTemplatePlanId}
+                    className="w-full"
+                  />
                 </div>
-              </section>
+              )}
+
+              <div className="rounded-[10px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-xx-weak)] px-4 py-3">
+                <p className="text-[13px] leading-[19px] text-[var(--text-neutral-medium)]">
+                  Using a template creates a brand-new plan record. To renew an existing plan into this plan year, use{' '}
+                  <span className="font-semibold text-[var(--text-neutral-strong)]">Add Existing Plans</span>.
+                </p>
+              </div>
             </div>
 
-            <footer className="h-[108px] px-8 border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] flex items-center gap-4">
+            <footer className="h-[88px] px-8 border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)] flex items-center justify-end gap-4">
               <button
                 type="button"
-                onClick={closePlanDetails}
-                className="h-10 px-6 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
+                onClick={() => setIsCreatePlanChoiceOpen(false)}
+                className="h-10 px-2 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
               >
-                Close
+                Cancel
               </button>
               <button
                 type="button"
-                onClick={closePlanDetails}
-                className="h-10 px-1 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
+                onClick={continueCreatePlan}
+                disabled={createPlanMode === 'template' && !selectedTemplatePlanId}
+                className={`h-10 px-6 rounded-[var(--radius-full)] text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)] ${
+                  createPlanMode === 'template' && !selectedTemplatePlanId
+                    ? 'bg-[var(--surface-neutral-medium)] text-white cursor-not-allowed'
+                    : 'bg-[var(--color-primary-strong)] text-white'
+                }`}
               >
-                Cancel
+                Continue
               </button>
             </footer>
           </div>
         </div>
       )}
+
     </PlanYearWizardLayout>
   );
 }

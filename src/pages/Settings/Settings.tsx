@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Icon } from '../../components';
+import { Dropdown, Icon } from '../../components';
 import {
   defaultIncludedPlanIdsByYear,
   planYearCarrierOptions,
@@ -66,6 +66,8 @@ interface SettingsPlanVersionDetails {
   attachmentName: string;
 }
 
+type PlanYearPlanActionMode = 'renew' | 'create';
+
 export function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,8 +82,10 @@ export function Settings() {
   const allBenefitPlanYears = getBenefitPlanYearsWithCustom(benefitPlanYears);
   const activeBenefitPlanYears = allBenefitPlanYears.filter((planYear) => planYear.status === 'Active');
   const [selectedRenewOption, setSelectedRenewOption] = useState<string>('');
-  const [renewingPlanName, setRenewingPlanName] = useState('');
-  const [renewingPlanType, setRenewingPlanType] = useState('Medical');
+  const [renewingPlanName] = useState('');
+  const [renewingPlanType] = useState('Medical');
+  const [planYearPlanActionMode] = useState<PlanYearPlanActionMode>('renew');
+  const [selectedCreatePlanType] = useState<string | null>(null);
   const [openPlanYearActionsId, setOpenPlanYearActionsId] = useState<string | null>(null);
   const [isSettingsPlanDetailsOpen, setIsSettingsPlanDetailsOpen] = useState(false);
   const [activeSettingsPlanDetails, setActiveSettingsPlanDetails] = useState<SettingsPlanDetails | null>(null);
@@ -89,6 +93,9 @@ export function Settings() {
   const [hiddenSettingsVersionIds, setHiddenSettingsVersionIds] = useState<Set<string>>(new Set());
   const [openVersionActionsId, setOpenVersionActionsId] = useState<string | null>(null);
   const [openEligibilityPlanId, setOpenEligibilityPlanId] = useState<string | null>(null);
+  const [plansStatusFilter, setPlansStatusFilter] = useState('active');
+  const [hiddenSettingsPlanRowKeys, setHiddenSettingsPlanRowKeys] = useState<Set<string>>(new Set());
+  const [pendingPlanDelete, setPendingPlanDelete] = useState<{ rowKey: string; name: string } | null>(null);
   const selectedNavLabel = settingsNavItems.find((n) => n.id === activeNav)?.label ?? 'Settings';
   const buildEligibilityFilters = (eligibility: string) => {
     if (eligibility.toLowerCase().includes('30+ hrs')) {
@@ -138,6 +145,7 @@ export function Settings() {
       const planYear = unifiedPlan?.effectiveDate?.split('/')[2] ?? unifiedPlan?.endDate?.split('/')[2] ?? plan.endDate.split('/')[2];
 
       return {
+        rowKey: `${plan.id}::${planYear}`,
         id: plan.id,
         name: plan.name,
         type: group.label,
@@ -152,6 +160,25 @@ export function Settings() {
       };
     }),
   })).filter((group) => group.plans.length > 0);
+
+  const plansStatusFilterOptions = [
+    { value: 'active', label: 'Active Plans' },
+    { value: 'inactive', label: 'Inactive Plans' },
+    { value: 'all', label: 'All Plans' },
+  ];
+
+  const filteredPlanVersionGroups = planVersionGroups
+    .map((group) => ({
+      ...group,
+      plans: group.plans.filter((plan) => {
+        if (hiddenSettingsPlanRowKeys.has(plan.rowKey)) return false;
+        const matchesStatus =
+          plansStatusFilter === 'all' ||
+          (plansStatusFilter === 'active' ? plan.isActive : !plan.isActive);
+        return matchesStatus;
+      }),
+    }))
+    .filter((group) => group.plans.length > 0);
 
   const isPlanIncludedInPlanYear = (targetPlanYearId: string, planName: string, planType: string) => {
     const includedPlanIds = getIncludedPlanIdsForPlanYear(
@@ -232,7 +259,7 @@ export function Settings() {
     return renewedPlanId;
   };
 
-  const handleContinueCreatePlanYear = () => {
+  const createNextPlanYear = () => {
     const numericPlanYears = allBenefitPlanYears
       .map((planYear) => Number.parseInt(planYear.id, 10))
       .filter((year) => Number.isFinite(year));
@@ -262,6 +289,11 @@ export function Settings() {
       setSelectedCarrierIdsForPlanYear(targetPlanYearId, []);
     }
 
+    return targetPlanYearId;
+  };
+
+  const handleContinueCreatePlanYear = () => {
+    const targetPlanYearId = createNextPlanYear();
     setIsCreatePlanYearModalOpen(false);
     navigate(`/settings/plan-years/${targetPlanYearId}`);
   };
@@ -275,8 +307,25 @@ export function Settings() {
       if (planYearCreationMode === 'existing' && !selectedSourcePlanYearId) {
         return;
       }
+      const targetPlanYearId = createNextPlanYear();
       setIsRenewPlanModalOpen(false);
-      handleContinueCreatePlanYear();
+
+      if (planYearPlanActionMode === 'create' && selectedCreatePlanType) {
+        navigate(
+          `/settings/plan-years/${targetPlanYearId}/plans/create?planType=${encodeURIComponent(selectedCreatePlanType)}`,
+        );
+        return;
+      }
+
+      navigate(`/settings/plan-years/${targetPlanYearId}`);
+      return;
+    }
+
+    if (planYearPlanActionMode === 'create' && selectedCreatePlanType) {
+      setIsRenewPlanModalOpen(false);
+      navigate(
+        `/settings/plan-years/${selectedRenewOption}/plans/create?planType=${encodeURIComponent(selectedCreatePlanType)}`,
+      );
       return;
     }
 
@@ -325,7 +374,7 @@ export function Settings() {
           ]
       ).map((planYear, index) => ({
         id: planYear.id,
-        versionLabel: planYear.status === 'Active' ? `${planYear.name} Active` : `${planYear.name} Inactive`,
+        versionLabel: planYear.name,
         effectiveStart: planYear.duration.split(' - ')[0] ?? '--',
         effectiveEnd: planYear.duration.split(' - ')[1] ?? '--',
         status: planYear.status === 'Active' ? 'Active' : 'Inactive',
@@ -347,6 +396,19 @@ export function Settings() {
     visibleSettingsPlanVersions.find((version) => version.id === selectedSettingsVersionId) ?? visibleSettingsPlanVersions[0];
   const shouldScrollPlanVersions = visibleSettingsPlanVersions.length > 4;
   const isViewingOlderPlanVersion = selectedSettingsVersion?.status === 'Inactive';
+  const selectedRenewPlanYear = activeBenefitPlanYears.find((planYear) => planYear.id === selectedRenewOption);
+  const selectedRenewAlreadyIncluded =
+    planYearPlanActionMode === 'renew' &&
+    selectedRenewOption !== '' &&
+    selectedRenewOption !== 'new' &&
+    isPlanIncludedInPlanYear(selectedRenewOption, renewingPlanName, renewingPlanType);
+  const renewPlanYearOptions = [
+    ...activeBenefitPlanYears.map((planYear) => ({
+      value: planYear.id,
+      label: `${planYear.name} (${planYear.duration})`,
+    })),
+    { value: 'new', label: 'Create New Plan Year' },
+  ];
   const deleteSettingsVersion = (versionId: string) => {
     setHiddenSettingsVersionIds((prev) => {
       const next = new Set(prev);
@@ -571,35 +633,28 @@ export function Settings() {
               </div>
             ) : benefitsSubTab === 'plans' ? (
               <div>
-                <h4
-                  className="text-[22px] font-semibold text-[var(--color-primary-strong)] mb-4"
-                  style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
-                >
-                  Plans
-                </h4>
-
-                <div className="flex items-center justify-between mb-4 gap-4">
-                  <div className="flex items-center">
-                    <button className="inline-flex items-center gap-2 h-10 px-5 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
-                      <Icon name="circle-plus" size={14} />
-                      Create New Plan
-                      <Icon name="caret-down" size={11} className="text-[var(--icon-neutral-strong)]" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-[15px] font-medium text-[var(--text-neutral-strong)]">Showing</span>
-                    <button className="inline-flex items-center justify-between min-w-[250px] h-10 px-4 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
-                      Active Plans
-                      <Icon name="caret-down" size={11} className="text-[var(--icon-neutral-strong)]" />
-                    </button>
-                  </div>
+                <div className="mb-2 flex items-center justify-between gap-4 flex-wrap">
+                  <h4
+                    className="text-[22px] font-semibold text-[var(--color-primary-strong)]"
+                    style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+                  >
+                    Plans
+                  </h4>
+                  <Dropdown
+                    label="Showing"
+                    options={plansStatusFilterOptions}
+                    value={plansStatusFilter}
+                    onChange={setPlansStatusFilter}
+                    className="w-[250px]"
+                  />
                 </div>
+                <p className="text-[15px] leading-[22px] text-[var(--text-neutral-medium)] mb-4">
+                  New plans must be created from within a plan year.
+                </p>
 
                 <div className="overflow-hidden">
-                  <div className="grid grid-cols-[1.5fr_1fr_0.7fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-3 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] text-[15px] font-semibold text-[var(--text-neutral-strong)] mb-2">
+                  <div className="grid grid-cols-[1.6fr_0.8fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-3 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] text-[15px] font-semibold text-[var(--text-neutral-strong)] mb-2">
                     <span>Plan Name</span>
-                    <span>Carrier</span>
                     <span>Plan Year</span>
                     <span>Effective Dates</span>
                     <span>Eligibility</span>
@@ -608,7 +663,7 @@ export function Settings() {
                   </div>
 
                   <div className="space-y-3">
-                    {planVersionGroups.map((group) => (
+                    {filteredPlanVersionGroups.map((group) => (
                       <div key={group.id}>
                         <div className="flex items-center gap-2 px-4 py-2 bg-[var(--surface-neutral-xx-weak)] rounded-[var(--radius-small)] mb-1">
                           <Icon name={group.icon} size={14} className="text-[var(--icon-neutral-strong)]" />
@@ -616,8 +671,8 @@ export function Settings() {
                         </div>
                         {group.plans.map((plan) => (
                           <div
-                            key={plan.id}
-                            className="group grid grid-cols-[1.5fr_1fr_0.7fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-5 border-b border-[var(--border-neutral-xx-weak)] transition-colors hover:bg-[var(--surface-neutral-xx-weak)]"
+                            key={plan.rowKey}
+                            className="group grid grid-cols-[1.6fr_0.8fr_1fr_1fr_1.2fr_120px] gap-4 px-4 py-5 border-b border-[var(--border-neutral-xx-weak)] transition-colors hover:bg-[var(--surface-neutral-xx-weak)]"
                           >
                             <button
                               type="button"
@@ -636,12 +691,14 @@ export function Settings() {
                                 {plan.isActive ? 'Active' : 'Inactive'}
                               </span>
                             </button>
-                            <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.carrier}</span>
-                            <span>
-                              <span className="inline-flex items-center justify-center h-7 px-3 rounded-[999px] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-xx-weak)] text-[13px] font-medium text-[var(--text-neutral-strong)]">
-                                {plan.planYear}
-                              </span>
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/settings/plan-years/${plan.planYear}/plans`)}
+                              className="text-left text-[15px] text-[#0b4fd1] hover:underline"
+                            >
+                              {plan.planYear}
+                            </button>
+
                             <div className="text-[15px] text-[var(--text-neutral-strong)] leading-[20px]">
                               <div>{plan.startDate}</div>
                               <div className="text-[var(--text-neutral-medium)]">{plan.endDate}</div>
@@ -671,29 +728,31 @@ export function Settings() {
                             </div>
                             <span className="text-[15px] text-[var(--text-neutral-strong)]">{plan.status}</span>
                             <div className="flex items-center justify-end gap-[6px]">
-                              <div className="relative">
-                                <button
-                                  aria-label="renew plan"
-                                  onClick={() => {
-                                    setRenewingPlanName(plan.name);
-                                    setRenewingPlanType(plan.type);
-                                    setSelectedRenewOption('');
-                                    setPlanYearCreationMode('existing');
-                                    setSelectedSourcePlanYearId('');
-                                    setIsRenewPlanModalOpen(true);
-                                  }}
-                                  className="peer w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
-                                >
-                                  <Icon name="arrows-rotate" size={13} />
-                                </button>
-                                <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 px-2 py-1 rounded-[8px] bg-[var(--text-neutral-x-strong)] text-white text-[12px] leading-[16px] whitespace-nowrap opacity-0 transition-opacity peer-hover:opacity-100">
-                                  renew plan
-                                </span>
-                              </div>
-                              <button className="w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
-                                <Icon name="pen-to-square" size={13} />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const carrierId =
+                                    planYearCarrierOptions.find(
+                                      (carrier) => carrier.name.toLowerCase() === plan.carrier.toLowerCase(),
+                                    )?.id ?? 'united-healthcare';
+                                  const params = new URLSearchParams({
+                                    name: plan.name,
+                                    type: plan.type,
+                                    carrierId,
+                                  });
+                                  navigate(
+                                    `/settings/plan-years/${plan.planYear}/plans/edit/${encodeURIComponent(plan.id)}?${params.toString()}`,
+                                  );
+                                }}
+                                className="h-8 px-3 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] shadow-[var(--shadow-100)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+                              >
+                                <Icon name="pen" size={13} />
                               </button>
-                              <button className="w-9 h-9 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
+                              <button
+                                type="button"
+                                onClick={() => setPendingPlanDelete({ rowKey: plan.rowKey, name: plan.name })}
+                                className="h-8 px-3 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] flex items-center justify-center text-[var(--icon-neutral-strong)] bg-[var(--surface-neutral-white)] shadow-[var(--shadow-100)] opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+                              >
                                 <Icon name="trash-can" size={13} />
                               </button>
                             </div>
@@ -1308,13 +1367,18 @@ export function Settings() {
                   <div className={`flex items-stretch gap-4 ${shouldScrollPlanVersions ? 'min-w-max' : 'w-full'}`}>
                   {visibleSettingsPlanVersions.map((version) => {
                     const isSelected = selectedSettingsVersion?.id === version.id;
+                    const isActiveVersion = version.status === 'Active';
                     return (
                       <div
                         key={version.id}
-                        className={`h-[86px] rounded-[16px] border bg-[var(--surface-neutral-white)] shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-5 text-left ${
-                          shouldScrollPlanVersions ? 'w-[300px] shrink-0' : 'flex-1 min-w-0'
+                        className={`h-[72px] rounded-[14px] border shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] px-4 text-left ${
+                          shouldScrollPlanVersions ? 'w-[250px] shrink-0' : 'flex-1 min-w-0'
                         } ${
-                          isSelected ? 'border-[var(--color-primary-medium)]' : 'border-[var(--border-neutral-x-weak)]'
+                          isSelected
+                            ? 'border-[var(--color-primary-medium)]'
+                            : isActiveVersion
+                              ? 'border-[#9bc88e] bg-[#f4faf2]'
+                              : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
                         } relative group`}
                       >
                         <button
@@ -1323,16 +1387,29 @@ export function Settings() {
                           className="h-full w-full pr-8 text-left"
                         >
                           <p
-                            className={`text-[16px] leading-[24px] whitespace-nowrap overflow-hidden text-ellipsis ${
-                              isSelected ? 'font-bold text-[var(--color-primary-strong)]' : 'font-medium text-[var(--text-neutral-strong)]'
+                            className={`text-[15px] leading-[22px] whitespace-nowrap overflow-hidden text-ellipsis ${
+                              isSelected || isActiveVersion
+                                ? 'font-bold text-[var(--color-primary-strong)]'
+                                : 'font-semibold text-[var(--text-neutral-strong)]'
                             }`}
                             title={version.versionLabel}
                           >
                             {version.versionLabel}
                           </p>
-                          <p className="text-[15px] leading-[22px] text-[var(--text-neutral-strong)] whitespace-nowrap overflow-hidden text-ellipsis">
-                            {version.effectiveStart} - {version.effectiveEnd}
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[13px] leading-[19px] text-[var(--text-neutral-medium)] whitespace-nowrap overflow-hidden text-ellipsis">
+                              {version.effectiveStart} - {version.effectiveEnd}
+                            </p>
+                            <span
+                              className={`shrink-0 rounded-[999px] px-2 py-[2px] text-[11px] font-semibold leading-[14px] ${
+                                isActiveVersion
+                                  ? 'bg-[#e8fde8] text-[#016d00]'
+                                  : 'bg-[var(--surface-neutral-xx-weak)] text-[var(--text-neutral-medium)]'
+                              }`}
+                            >
+                              {version.status}
+                            </span>
+                          </div>
                         </button>
                         <button
                           type="button"
@@ -1406,7 +1483,7 @@ export function Settings() {
                       </h3>
                     </div>
                     <button className="h-8 px-4 rounded-[var(--radius-full)] border border-[var(--border-neutral-medium)] text-[15px] font-semibold text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-white)]">
-                      Edit
+                      {isViewingOlderPlanVersion ? 'Make a Correction' : 'Edit'}
                     </button>
                   </div>
 
@@ -1474,6 +1551,52 @@ export function Settings() {
         </div>
       )}
 
+      {pendingPlanDelete && (
+        <div className="fixed inset-0 z-[70] bg-[#605b58]/85 flex items-center justify-center p-6" onClick={() => setPendingPlanDelete(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Delete plan confirmation"
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[560px] rounded-[16px] bg-[var(--surface-neutral-white)] border border-[var(--border-neutral-x-weak)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden"
+          >
+            <header className="px-6 py-5 border-b border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]">
+              <h3 className="text-[24px] font-semibold text-[var(--text-neutral-x-strong)]" style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}>
+                Delete Plan?
+              </h3>
+            </header>
+            <div className="px-6 py-5">
+              <p className="text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
+                Are you sure you want to delete <span className="font-semibold">{pendingPlanDelete.name}</span> from this list?
+              </p>
+            </div>
+            <footer className="px-6 py-4 border-t border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-xx-weak)] flex items-center justify-end gap-4">
+              <button
+                type="button"
+                onClick={() => setPendingPlanDelete(null)}
+                className="h-10 px-2 text-[15px] font-semibold leading-[22px] text-[#0b4fd1]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHiddenSettingsPlanRowKeys((prev) => {
+                    const next = new Set(prev);
+                    next.add(pendingPlanDelete.rowKey);
+                    return next;
+                  });
+                  setPendingPlanDelete(null);
+                }}
+                className="h-10 px-6 rounded-[var(--radius-full)] bg-[#b42318] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)]"
+              >
+                Delete
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
       {isRenewPlanModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-[#605b58]/95 flex items-center justify-center p-6"
@@ -1482,7 +1605,7 @@ export function Settings() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={`Renew Plan ${renewingPlanName}`}
+            aria-label={`${planYearPlanActionMode === 'create' ? 'Create New Plan' : 'Renew Plan'} ${renewingPlanName}`}
             onClick={(event) => event.stopPropagation()}
             className="w-full max-w-[830px] rounded-[16px] bg-[var(--surface-neutral-white)] shadow-[2px_2px_0px_2px_rgba(56,49,47,0.05)] overflow-hidden border border-[var(--border-neutral-x-weak)]"
           >
@@ -1492,7 +1615,7 @@ export function Settings() {
                   className="text-[24px] font-semibold text-[var(--color-primary-strong)]"
                   style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
                 >
-                  Renew Plan
+                  {planYearPlanActionMode === 'create' ? 'Create New Plan' : 'Renew Plan'}
                 </h3>
               </div>
               <button
@@ -1510,74 +1633,49 @@ export function Settings() {
                 className="text-center text-[21px] font-semibold text-[var(--text-neutral-x-strong)] mb-2"
                 style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '26px' }}
               >
-                Renewing this plan for next year? Nice!
+                {planYearPlanActionMode === 'create'
+                  ? `Adding a ${selectedCreatePlanType ?? 'new'} plan? Great!`
+                  : 'Renewing this plan for next year? Nice!'}
               </h4>
               <p className="text-center text-[15px] leading-[22px] text-[var(--text-neutral-x-strong)] mb-6">
-                Which plan year should it be included in?
+                {planYearPlanActionMode === 'create'
+                  ? 'Which plan year should this new plan be added to?'
+                  : 'Which plan year should it be included in?'}
               </p>
 
               <div className="max-w-[920px] mx-auto space-y-4">
-                {activeBenefitPlanYears.map((planYear) => {
-                  const alreadyIncluded = isPlanIncludedInPlanYear(
-                    planYear.id,
-                    renewingPlanName,
-                    renewingPlanType,
-                  );
+                <div className="w-[460px] mx-auto">
+                  <label className="mb-2 block text-[15px] font-medium leading-[22px] text-[var(--text-neutral-x-strong)]">
+                    Select Plan Year
+                  </label>
+                  <Dropdown
+                    options={renewPlanYearOptions}
+                    value={selectedRenewOption}
+                    onChange={setSelectedRenewOption}
+                    className="w-[460px]"
+                  />
+                </div>
 
-                  return (
-                    <button
-                      key={planYear.id}
-                      type="button"
-                      disabled={alreadyIncluded}
-                      onClick={() => setSelectedRenewOption(planYear.id)}
-                      className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] disabled:opacity-60 disabled:cursor-not-allowed ${
-                        selectedRenewOption === planYear.id
-                          ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
-                          : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
-                      }`}
-                    >
-                      <span className="size-14 rounded-[18px] bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)] flex items-center justify-center">
-                        <Icon name="calendar" size={26} />
-                      </span>
-                      <span>
-                        <span className="block text-[16px] font-medium leading-[24px] text-[var(--color-primary-strong)]">
-                          {planYear.name}
-                        </span>
-                        <span className="block mt-1 text-[15px] leading-[22px] text-[var(--text-neutral-strong)]">
-                          {planYear.duration}
-                        </span>
-                        {alreadyIncluded && (
-                          <span className="block mt-1 text-[13px] leading-[19px] text-[var(--text-neutral-medium)]">
-                            Plan already included in this plan year
-                          </span>
+                {selectedRenewOption && (
+                  <div className="rounded-[12px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-xx-weak)] px-4 py-3">
+                    {selectedRenewOption === 'new' ? (
+                      <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">
+                        We&apos;ll create a new plan year and then add this plan to it.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">
+                          Duration: {selectedRenewPlanYear?.duration ?? '--'}
+                        </p>
+                        {selectedRenewAlreadyIncluded && (
+                          <p className="text-[14px] leading-[20px] text-[var(--text-neutral-medium)]">
+                            Plan already included in this plan year.
+                          </p>
                         )}
-                      </span>
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRenewOption('new')}
-                  className={`w-full min-h-[100px] rounded-[22px] border px-8 py-6 flex items-center gap-7 text-left shadow-[1px_1px_0px_2px_rgba(56,49,47,0.03)] ${
-                    selectedRenewOption === 'new'
-                      ? 'border-[var(--color-primary-medium)] bg-[var(--surface-neutral-white)]'
-                      : 'border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-white)]'
-                  }`}
-                >
-                  <span
-                    className={`size-14 rounded-[18px] flex items-center justify-center ${
-                      selectedRenewOption === 'new'
-                        ? 'bg-[var(--color-primary-strong)] text-white'
-                        : 'bg-[var(--surface-neutral-xx-weak)] text-[var(--color-primary-strong)]'
-                    }`}
-                  >
-                    <Icon name="circle-plus-lined" size={26} />
-                  </span>
-                  <span className="text-[16px] font-semibold leading-[24px] text-[var(--color-primary-strong)]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-                    Create New Plan Year
-                  </span>
-                </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {selectedRenewOption === 'new' && (
                   <div className="pt-1">
@@ -1670,7 +1768,8 @@ export function Settings() {
                   (selectedRenewOption === 'new' &&
                     planYearCreationMode === 'existing' &&
                     !selectedSourcePlanYearId) ||
-                  (selectedRenewOption !== 'new' &&
+                  (planYearPlanActionMode === 'renew' &&
+                    selectedRenewOption !== 'new' &&
                     isPlanIncludedInPlanYear(selectedRenewOption, renewingPlanName, renewingPlanType))
                 }
                 className="h-10 px-8 rounded-[var(--radius-full)] bg-[var(--color-primary-strong)] text-white text-[15px] font-semibold leading-[22px] shadow-[var(--shadow-100)] disabled:opacity-60 disabled:cursor-not-allowed"

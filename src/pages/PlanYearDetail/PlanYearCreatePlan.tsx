@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Icon } from '../../components';
 import {
   addCustomPlanForPlanYear,
+  getCustomPlansForPlanYear,
   getIncludedPlanIdsForPlanYear,
   getIncludedPlansForCarrier,
   getSelectedCarrierIdsForPlanYear,
@@ -19,7 +20,19 @@ const CARRIER_OPTIONS = [
   { id: 'fidelity', name: 'Fidelity' },
 ];
 
-const PLAN_TYPE_OPTIONS = ['Medical', 'Dental', 'Vision', 'Retirement', 'Supplemental', 'Other'];
+const PLAN_TYPE_OPTIONS = [
+  'Medical',
+  'Dental',
+  'Vision',
+  'Supplemental Health',
+  'Retirement',
+  'Reimbursement',
+  'Health Savings Account',
+  'Flex Savings Account',
+  'Life Insurance',
+  'Disability',
+  'Other',
+];
 
 const WIZARD_STEPS = [
   { id: 'plan-details', label: 'Plan Details' },
@@ -55,6 +68,18 @@ function buildPlanId(planName: string) {
   return `${slug || 'new-plan'}-${Date.now().toString(36)}`;
 }
 
+function toInputDate(value: string) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const [month, day, year] = value.split('/');
+  if (!month || !day || !year) return '';
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+function normalizePlanToken(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 function StepPlaceholder({
   title,
   description,
@@ -87,6 +112,7 @@ function StepPlaceholder({
 }
 
 export function PlanYearCreatePlan() {
+  const location = useLocation();
   const navigate = useNavigate();
   const {
     planYearId = 'default',
@@ -109,16 +135,41 @@ export function PlanYearCreatePlan() {
   const initialStepId = WIZARD_STEPS.some((step) => step.id === stepId)
     ? (stepId as WizardStepId)
     : 'plan-details';
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const templateSource = searchParams.get('source');
+  const templateName = searchParams.get('templateName') ?? '';
+  const templateType = searchParams.get('templateType') ?? '';
+  const templateCarrierId = searchParams.get('templateCarrierId') ?? '';
+  const templateEffectiveDate = toInputDate(searchParams.get('templateEffectiveDate') ?? '');
+  const templateEndDate = toInputDate(searchParams.get('templateEndDate') ?? '');
+  const isTemplateCreate = templateSource === 'template';
+  const preselectedPlanType = useMemo(() => {
+    const requestedType = searchParams.get('planType');
+    if (isTemplateCreate && templateType) {
+      return PLAN_TYPE_OPTIONS.find((type) => type.toLowerCase() === templateType.toLowerCase()) ?? PLAN_TYPE_OPTIONS[0];
+    }
+    if (!requestedType) return PLAN_TYPE_OPTIONS[0];
+    return PLAN_TYPE_OPTIONS.find((type) => type.toLowerCase() === requestedType.toLowerCase()) ?? PLAN_TYPE_OPTIONS[0];
+  }, [isTemplateCreate, searchParams, templateType]);
 
-  const [planName, setPlanName] = useState('');
-  const [selectedCarrierId, setSelectedCarrierId] = useState(resolvedCarrierId);
+  const [planName, setPlanName] = useState(isTemplateCreate && templateName ? `${templateName} Copy` : '');
+  const [selectedCarrierId, setSelectedCarrierId] = useState(
+    isTemplateCreate && templateCarrierId && carrierOptions.some((carrier) => carrier.id === templateCarrierId)
+      ? templateCarrierId
+      : resolvedCarrierId,
+  );
   const [groupNumber, setGroupNumber] = useState('');
-  const [planType, setPlanType] = useState(PLAN_TYPE_OPTIONS[0]);
+  const [planType, setPlanType] = useState(preselectedPlanType);
   const [planTypeId, setPlanTypeId] = useState('');
   const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
-  const [effectiveDate, setEffectiveDate] = useState('2026-01-01');
-  const [endDate, setEndDate] = useState('2026-12-31');
+  const [description, setDescription] = useState(
+    isTemplateCreate && templateName
+      ? `Copied from ${templateName}. Update details before publishing.`
+      : '',
+  );
+  const [effectiveDate, setEffectiveDate] = useState(templateEffectiveDate || '2026-01-01');
+  const [endDate, setEndDate] = useState(templateEndDate || '2026-12-31');
+  const [saveError, setSaveError] = useState('');
   const activeStepId = initialStepId;
 
   const activeStepIndex = WIZARD_STEPS.findIndex((step) => step.id === activeStepId);
@@ -143,6 +194,29 @@ export function PlanYearCreatePlan() {
     if (!canSavePlan) return;
 
     const formattedName = toTitleCase(planName.trim());
+    const normalizedName = normalizePlanToken(formattedName);
+    const normalizedType = normalizePlanToken(planType);
+    const carrierPlans = getIncludedPlansForCarrier(planYearId, selectedCarrierId);
+    const customPlansForCarrier = getCustomPlansForPlanYear(planYearId).filter(
+      (plan) => plan.carrierId === selectedCarrierId,
+    );
+    const duplicateExists =
+      carrierPlans.some(
+        (plan) =>
+          normalizePlanToken(plan.name) === normalizedName &&
+          normalizePlanToken(plan.type) === normalizedType,
+      ) ||
+      customPlansForCarrier.some(
+        (plan) =>
+          normalizePlanToken(plan.name) === normalizedName &&
+          normalizePlanToken(plan.type) === normalizedType,
+      );
+
+    if (duplicateExists) {
+      setSaveError('A plan with this name and type already exists in this plan year. To renew, use Add Existing Plans.');
+      return;
+    }
+
     const id = buildPlanId(formattedName);
     const displayStart = toDisplayDate(effectiveDate);
     const displayEnd = toDisplayDate(endDate);
@@ -286,18 +360,38 @@ export function PlanYearCreatePlan() {
 
               <div className="h-px bg-[var(--border-neutral-x-weak)] mb-4" />
 
+              {isTemplateCreate && (
+                <div className="mb-4 rounded-[10px] border border-[var(--border-neutral-x-weak)] bg-[var(--surface-neutral-xx-weak)] px-4 py-3">
+                  <p className="text-[13px] leading-[19px] text-[var(--text-neutral-medium)]">
+                    You&apos;re creating a new plan from a template. This does not renew or link the source plan.
+                  </p>
+                </div>
+              )}
+
+              {saveError && (
+                <div className="mb-4 rounded-[10px] border border-[#f1c0b7] bg-[#fff5f3] px-4 py-3">
+                  <p className="text-[13px] leading-[19px] text-[#b42318]">{saveError}</p>
+                </div>
+              )}
+
               <div className="w-[620px] space-y-2">
                 <label className="block text-[13px] font-medium leading-[19px] text-[var(--text-neutral-medium)]">Plan Name *</label>
                 <input
                   value={planName}
-                  onChange={(event) => setPlanName(event.target.value)}
+                  onChange={(event) => {
+                    setPlanName(event.target.value);
+                    if (saveError) setSaveError('');
+                  }}
                   className="w-[280px] h-10 rounded-[8px] border border-[var(--border-neutral-medium)] px-3 text-[14px]"
                 />
 
                 <label className="block text-[13px] font-medium leading-[19px] text-[var(--text-neutral-medium)]">Carrier *</label>
                 <select
                   value={selectedCarrierId}
-                  onChange={(event) => setSelectedCarrierId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedCarrierId(event.target.value);
+                    if (saveError) setSaveError('');
+                  }}
                   className="w-[280px] h-10 rounded-[8px] border border-[var(--border-neutral-medium)] px-3 text-[14px]"
                 >
                   {carrierOptions.map((carrier) => (
@@ -317,7 +411,10 @@ export function PlanYearCreatePlan() {
                 <label className="block text-[13px] font-medium leading-[19px] text-[var(--text-neutral-medium)]">Plan Type *</label>
                 <select
                   value={planType}
-                  onChange={(event) => setPlanType(event.target.value)}
+                  onChange={(event) => {
+                    setPlanType(event.target.value);
+                    if (saveError) setSaveError('');
+                  }}
                   className="w-[280px] h-10 rounded-[8px] border border-[var(--border-neutral-medium)] px-3 text-[14px]"
                 >
                   {PLAN_TYPE_OPTIONS.map((option) => (
