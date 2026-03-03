@@ -36,6 +36,16 @@ const JSDOS_NUKE_CSS = `
   }
 `;
 
+const kbd: React.CSSProperties = {
+  background: '#333',
+  color: '#aaa',
+  padding: '1px 5px',
+  borderRadius: '3px',
+  border: '1px solid #444',
+  fontSize: '11px',
+  fontFamily: 'Inter, sans-serif',
+};
+
 export function Doom() {
   const containerRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
@@ -107,6 +117,24 @@ export function Doom() {
           overflow: 'hidden',
         }}
       />
+      <div style={{
+        padding: '10px 24px',
+        borderTop: '1px solid #333',
+        flexShrink: 0,
+        display: 'flex',
+        gap: '24px',
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '12px',
+        color: '#666',
+      }}>
+        <span><kbd style={kbd}>WASD</kbd> / <kbd style={kbd}>Arrows</kbd> Move</span>
+        <span><kbd style={kbd}>Mouse</kbd> Aim</span>
+        <span><kbd style={kbd}>Click</kbd> / <kbd style={kbd}>Ctrl</kbd> Shoot</span>
+        <span><kbd style={kbd}>Space</kbd> Use/Open</span>
+        <span><kbd style={kbd}>Shift</kbd> Run</span>
+        <span><kbd style={kbd}>1-7</kbd> Weapons</span>
+        <span><kbd style={kbd}>Esc</kbd> Menu / Release mouse</span>
+      </div>
     </div>
   );
 }
