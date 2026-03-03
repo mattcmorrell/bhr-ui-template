@@ -9,7 +9,7 @@ const NAV_STORAGE_KEY = 'bhr-nav-expanded';
 interface NavItem {
   path: string;
   label: string;
-  icon: 'home' | 'circle-user' | 'user-group' | 'id-badge' | 'chart-pie-simple' | 'file-lines' | 'circle-dollar';
+  icon: 'home' | 'circle-user' | 'user-group' | 'id-badge' | 'chart-pie-simple' | 'file-lines' | 'circle-dollar' | 'gamepad';
 }
 
 const navItems: NavItem[] = [
@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { path: '/reports', label: 'Reports', icon: 'chart-pie-simple' },
   { path: '/files', label: 'Files', icon: 'file-lines' },
   { path: '/payroll', label: 'Payroll', icon: 'circle-dollar' },
+  { path: '/doom', label: 'Doom', icon: 'gamepad' },
 ];
 
 interface GlobalNavProps {

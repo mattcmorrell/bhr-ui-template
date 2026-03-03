@@ -11,3 +11,4 @@ export { NewEmployeePage } from './NewEmployeePage';
 export { DatePickerDemo } from './DatePickerDemo';
 export { CreateJobOpening } from './CreateJobOpening';
 export { JobAIPrototype } from './JobAIPrototype';
+export { Doom } from './Doom';
