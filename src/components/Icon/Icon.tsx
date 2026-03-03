@@ -119,6 +119,7 @@ import {
   Inbox,
   Settings,
   CirclePlus,
+  Gamepad2,
 } from 'lucide-react';
 
 export type IconName =
@@ -229,7 +230,8 @@ export type IconName =
   | 'house-laptop'
   | 'spinner'
   | 'arrow-left'
-  | 'rotate-left';
+  | 'rotate-left'
+  | 'gamepad';
 
 interface IconProps {
   name: IconName;
@@ -442,6 +444,14 @@ export function Icon({ name, size = 24, className = '', variant = 'solid', style
 
   if (name === 'chart-pie-simple' && variant === 'regular') {
     return <PieChart size={size} className={className} strokeWidth={2.25} style={style} />;
+  }
+
+  if (name === 'gamepad' && variant === 'regular') {
+    return <Gamepad2 size={size} className={className} strokeWidth={2.25} style={style} />;
+  }
+
+  if (name === 'gamepad' && variant === 'solid') {
+    return <Gamepad2 size={size} className={className} strokeWidth={2.25} fill="currentColor" style={style} />;
   }
 
   // Handle Font Awesome icons

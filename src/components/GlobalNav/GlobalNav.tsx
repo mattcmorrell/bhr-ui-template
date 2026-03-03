@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../Icon';
 import { useTheme } from '../../contexts/ThemeContext';
 import avatarSmall from '../../assets/images/avatar-small.png';
@@ -32,8 +32,23 @@ export function GlobalNav({ className = '' }: GlobalNavProps) {
     return stored ? JSON.parse(stored) : false;
   });
   const [isTablet, setIsTablet] = useState(false);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const { isDark, toggleTheme } = useTheme();
+
+  // Close avatar menu on outside click
+  useEffect(() => {
+    if (!avatarMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+        setAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [avatarMenuOpen]);
 
   // Check for tablet viewport
   useEffect(() => {
@@ -152,30 +167,48 @@ export function GlobalNav({ className = '' }: GlobalNavProps) {
           </span>
         </button>
 
-        {/* Account */}
-        <div
-          className={`
-            flex items-center
-            bg-[var(--surface-neutral-x-weak)]
-            rounded-[var(--radius-small)]
-            ${effectiveExpanded ? 'gap-4 px-4 py-3' : 'w-14 h-14 justify-center'}
-          `}
-        >
-          <img
-            src={avatarSmall}
-            alt="Account"
-            className="w-8 h-8 shrink-0 rounded-[var(--radius-xx-small)] object-cover"
-            style={{ boxShadow: 'var(--shadow-100)' }}
-          />
-          <span
+        {/* Account with popover */}
+        <div ref={avatarMenuRef} className="relative">
+          <button
+            onClick={() => setAvatarMenuOpen(!avatarMenuOpen)}
             className={`
-              font-medium text-base text-[var(--text-neutral-x-strong)]
-              transition-opacity duration-300
-              ${effectiveExpanded ? 'opacity-100 delay-[50ms]' : 'opacity-0 w-0 overflow-hidden delay-0'}
+              flex items-center w-full
+              bg-[var(--surface-neutral-x-weak)]
+              rounded-[var(--radius-small)]
+              transition-colors duration-200
+              hover:bg-[var(--surface-neutral-xx-weak)]
+              ${effectiveExpanded ? 'gap-4 px-4 py-3' : 'w-14 h-14 justify-center'}
             `}
           >
-            Account
-          </span>
+            <img
+              src={avatarSmall}
+              alt="Account"
+              className="w-8 h-8 shrink-0 rounded-[var(--radius-xx-small)] object-cover"
+              style={{ boxShadow: 'var(--shadow-100)' }}
+            />
+            <span
+              className={`
+                font-medium text-base text-[var(--text-neutral-x-strong)]
+                transition-opacity duration-300
+                ${effectiveExpanded ? 'opacity-100 delay-[50ms]' : 'opacity-0 w-0 overflow-hidden delay-0'}
+              `}
+            >
+              Account
+            </span>
+          </button>
+          {avatarMenuOpen && (
+            <div
+              className="absolute left-full bottom-0 ml-2 w-56 py-1 rounded-lg shadow-lg border border-[var(--border-neutral-weak)] bg-[var(--surface-neutral-white)]"
+              style={{ zIndex: 100 }}
+            >
+              <button
+                onClick={() => { setAvatarMenuOpen(false); navigate('/doom'); }}
+                className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-neutral-x-strong)] hover:bg-[var(--surface-neutral-xx-weak)] transition-colors"
+              >
+                Employee Wellness Program
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Expand/Collapse Button - hidden on tablet */}
