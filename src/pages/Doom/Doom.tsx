@@ -74,7 +74,7 @@ export function Doom() {
       Dos(container, {
         url: 'https://v8.js-dos.com/bundles/doom.jsdos',
         autoStart: true,
-        mouseSensitivity: 3.0,
+        mouseSensitivity: 0.9,
         mouseCapture: true,
       });
       // Inject style after js-dos renders its first frame
