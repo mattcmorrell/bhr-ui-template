@@ -128,10 +128,12 @@ function ensureScript(): Promise<void> {
   });
 }
 
+// Guard against StrictMode double-mount: only one instance at a time
+let activeContainer: HTMLDivElement | null = null;
+
 function DoomEmulator({ muted }: { muted: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle mute/unmute via gain nodes (reliable unlike suspend/resume)
   useEffect(() => {
     setMuteAll(muted);
   }, [muted]);
@@ -140,13 +142,22 @@ function DoomEmulator({ muted }: { muted: boolean }) {
     if (!containerRef.current) return;
     const container = containerRef.current;
 
+    // If there's already an active instance, tear it down first
+    if (activeContainer && activeContainer !== container) {
+      closeAllAudioContexts();
+      activeContainer.querySelectorAll('audio, video').forEach((el) => el.remove());
+      activeContainer.innerHTML = '';
+    }
+    activeContainer = container;
+
     const style = document.createElement('style');
     style.textContent = JSDOS_NUKE_CSS;
 
     let cancelled = false;
 
     ensureScript().then(() => {
-      if (cancelled || !containerRef.current) return;
+      // Bail if this mount was already cleaned up or superseded
+      if (cancelled || activeContainer !== container) return;
       // @ts-expect-error js-dos global
       Dos(container, {
         url: 'https://v8.js-dos.com/bundles/doom.jsdos',
@@ -154,17 +165,20 @@ function DoomEmulator({ muted }: { muted: boolean }) {
         mouseSensitivity: 0.9,
         mouseCapture: true,
       });
-      requestAnimationFrame(() => container.appendChild(style));
+      requestAnimationFrame(() => {
+        if (activeContainer === container) container.appendChild(style);
+      });
     });
 
     return () => {
       cancelled = true;
-      // Close all tracked AudioContexts created by js-dos
-      closeAllAudioContexts();
-      // Kill any media elements
-      container.querySelectorAll('audio, video').forEach((el) => el.remove());
-      // Nuke the container contents to stop the emulator
-      container.innerHTML = '';
+      // Only tear down if we're still the active instance
+      if (activeContainer === container) {
+        activeContainer = null;
+        closeAllAudioContexts();
+        container.querySelectorAll('audio, video').forEach((el) => el.remove());
+        container.innerHTML = '';
+      }
       style.remove();
     };
   }, []);
