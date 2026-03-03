@@ -28,6 +28,12 @@ const JSDOS_NUKE_CSS = `
   .pre-run-window > div:not(:first-child) {
     display: none !important;
   }
+  canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    image-rendering: pixelated !important;
+  }
 `;
 
 export function Doom() {
