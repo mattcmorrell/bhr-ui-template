@@ -73,6 +73,9 @@ export function Doom() {
       // @ts-expect-error js-dos global
       Dos(container, {
         url: 'https://v8.js-dos.com/bundles/doom.jsdos',
+        autoStart: true,
+        mouseSensitivity: 3.0,
+        mouseCapture: true,
       });
       // Inject style after js-dos renders its first frame
       requestAnimationFrame(() => container.appendChild(style));
