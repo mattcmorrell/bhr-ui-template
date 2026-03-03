@@ -1,41 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-// Injected directly into the js-dos container element so it scopes tightly
-// and can't be beaten by Tailwind utility classes (inline style > class styles)
-const JSDOS_NUKE_CSS = `
-  .sidebar, .sidebar-button, .background-image, .contentbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-    pointer-events: none !important;
-  }
-  .window.absolute {
-    overflow: hidden !important;
-  }
-  .window.absolute > div:first-child {
-    width: 100% !important;
-    height: 100% !important;
-    overflow: hidden !important;
-  }
-  .pre-run-window {
-    width: 100% !important;
-    height: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-  .pre-run-window > div:not(:first-child) {
-    display: none !important;
-  }
-  canvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    image-rendering: pixelated !important;
-  }
-`;
-
 const kbd: React.CSSProperties = {
   background: '#333',
   color: '#aaa',
@@ -46,165 +10,105 @@ const kbd: React.CSSProperties = {
   fontFamily: 'Inter, sans-serif',
 };
 
-// Track all AudioContexts created by js-dos so we can kill them on unmount
-const trackedContexts = new Set<AudioContext>();
-let audioPatched = false;
-let globalMuted = false;
-let muteInterval: ReturnType<typeof setInterval> | null = null;
-
-function patchAudioContext() {
-  if (audioPatched) return;
-  audioPatched = true;
-
-  const OrigAudioContext = window.AudioContext || (window as any).webkitAudioContext;
-  if (!OrigAudioContext) return;
-
-  const PatchedAudioContext = function (this: AudioContext, ...args: any[]) {
-    const ctx = new OrigAudioContext(...args);
-    trackedContexts.add(ctx);
-    // If globally muted, immediately suspend new contexts
-    if (globalMuted) ctx.suspend();
-    return ctx;
-  } as any;
-  PatchedAudioContext.prototype = OrigAudioContext.prototype;
-  (window as any).AudioContext = PatchedAudioContext;
-  if ((window as any).webkitAudioContext) {
-    (window as any).webkitAudioContext = PatchedAudioContext;
+// Build a self-contained HTML page that runs js-dos inside an iframe.
+// This completely isolates js-dos (CSS, JS, AudioContext) from the host app.
+// Tearing down = removing the iframe. No monkey-patching needed.
+const DOOM_HTML = `<!DOCTYPE html>
+<html><head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  #dos { width: 100%; height: 100%; }
+  .sidebar, .sidebar-button, .background-image, .contentbar {
+    display: none !important;
+    width: 0 !important; height: 0 !important;
+    overflow: hidden !important; pointer-events: none !important;
   }
-}
-
-function closeAllAudioContexts() {
-  if (muteInterval) { clearInterval(muteInterval); muteInterval = null; }
-  trackedContexts.forEach((ctx) => {
-    try {
-      if (ctx.state !== 'closed') ctx.close();
-    } catch { /* already closed */ }
+  .window.absolute { overflow: hidden !important; }
+  .window.absolute > div:first-child {
+    width: 100% !important; height: 100% !important; overflow: hidden !important;
+  }
+  .pre-run-window {
+    width: 100% !important; height: 100% !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+  }
+  .pre-run-window > div:not(:first-child) { display: none !important; }
+  canvas {
+    width: 100% !important; height: 100% !important;
+    object-fit: contain !important; image-rendering: pixelated !important;
+  }
+</style>
+</head><body>
+<div id="dos"></div>
+<script src="https://v8.js-dos.com/latest/js-dos.js"><\/script>
+<script>
+  Dos(document.getElementById("dos"), {
+    url: "https://v8.js-dos.com/bundles/doom.jsdos",
+    autoStart: true,
+    mouseSensitivity: 0.9,
+    mouseCapture: true,
   });
-  trackedContexts.clear();
-}
 
-function setMuteAll(muted: boolean) {
-  globalMuted = muted;
-  // Clear any existing enforcement interval
-  if (muteInterval) { clearInterval(muteInterval); muteInterval = null; }
-
-  const apply = () => {
-    trackedContexts.forEach((ctx) => {
-      try {
-        if (muted && ctx.state === 'running') ctx.suspend();
-        if (!muted && ctx.state === 'suspended') ctx.resume();
-      } catch { /* closed */ }
-    });
-  };
-
-  apply();
-  // js-dos creates/resumes contexts over time — enforce periodically while muted
-  if (muted) {
-    muteInterval = setInterval(apply, 500);
-  }
-}
-
-// Load the js-dos script once globally — it must survive across navigations
-let scriptLoaded = false;
-function ensureScript(): Promise<void> {
-  patchAudioContext();
-
-  if (scriptLoaded && typeof (window as any).Dos === 'function') {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    if (typeof (window as any).Dos === 'function') {
-      scriptLoaded = true;
-      resolve();
-      return;
+  // Listen for mute/unmute messages from parent
+  window.addEventListener("message", function(e) {
+    if (e.data === "mute") {
+      var contexts = window._audioContexts || [];
+      contexts.forEach(function(ctx) {
+        if (ctx.state === "running") ctx.suspend();
+      });
+    } else if (e.data === "unmute") {
+      var contexts = window._audioContexts || [];
+      contexts.forEach(function(ctx) {
+        if (ctx.state === "suspended") ctx.resume();
+      });
     }
-    const script = document.createElement('script');
-    script.src = 'https://v8.js-dos.com/latest/js-dos.js';
-    script.onload = () => {
-      scriptLoaded = true;
-      resolve();
-    };
-    document.head.appendChild(script);
   });
-}
 
-// Guard against StrictMode double-mount: only one instance at a time
-let activeContainer: HTMLDivElement | null = null;
-
-function DoomEmulator({ muted }: { muted: boolean }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMuteAll(muted);
-  }, [muted]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const container = containerRef.current;
-
-    // If there's already an active instance, tear it down first
-    if (activeContainer && activeContainer !== container) {
-      closeAllAudioContexts();
-      activeContainer.querySelectorAll('audio, video').forEach((el) => el.remove());
-      activeContainer.innerHTML = '';
-    }
-    activeContainer = container;
-
-    const style = document.createElement('style');
-    style.textContent = JSDOS_NUKE_CSS;
-
-    let cancelled = false;
-
-    ensureScript().then(() => {
-      // Bail if this mount was already cleaned up or superseded
-      if (cancelled || activeContainer !== container) return;
-      // @ts-expect-error js-dos global
-      Dos(container, {
-        url: 'https://v8.js-dos.com/bundles/doom.jsdos',
-        autoStart: true,
-        mouseSensitivity: 0.9,
-        mouseCapture: true,
-      });
-      requestAnimationFrame(() => {
-        if (activeContainer === container) container.appendChild(style);
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      // Only tear down if we're still the active instance
-      if (activeContainer === container) {
-        activeContainer = null;
-        closeAllAudioContexts();
-        container.querySelectorAll('audio, video').forEach((el) => el.remove());
-        container.innerHTML = '';
-      }
-      style.remove();
+  // Track all AudioContexts created inside the iframe
+  window._audioContexts = [];
+  var _OrigAC = window.AudioContext || window.webkitAudioContext;
+  if (_OrigAC) {
+    var _Patched = function() {
+      var ctx = new _OrigAC();
+      window._audioContexts.push(ctx);
+      return ctx;
     };
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        flex: 1,
-        width: '100%',
-        background: '#000',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    />
-  );
-}
+    _Patched.prototype = _OrigAC.prototype;
+    window.AudioContext = _Patched;
+    if (window.webkitAudioContext) window.webkitAudioContext = _Patched;
+  }
+<\/script>
+</body></html>`;
 
 export function Doom() {
-  const [sessionKey, setSessionKey] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const [muted, setMuted] = useState(false);
 
   const toggleMute = useCallback(() => setMuted((m) => !m), []);
 
+  // Send mute/unmute messages to the iframe
   useEffect(() => {
-    return () => setSessionKey((k) => k + 1);
+    iframeRef.current?.contentWindow?.postMessage(muted ? 'mute' : 'unmute', '*');
+  }, [muted]);
+
+  // Create blob URL on mount, revoke on unmount
+  useEffect(() => {
+    const blob = new Blob([DOOM_HTML], { type: 'text/html' });
+    blobUrlRef.current = URL.createObjectURL(blob);
+    const url = blobUrlRef.current;
+
+    if (iframeRef.current) {
+      iframeRef.current.src = url;
+    }
+
+    return () => {
+      // Removing/clearing the iframe src kills all audio and JS inside it
+      if (iframeRef.current) {
+        iframeRef.current.src = 'about:blank';
+      }
+      URL.revokeObjectURL(url);
+    };
   }, []);
 
   return (
@@ -254,7 +158,17 @@ export function Doom() {
           <span style={{ fontSize: '14px', fontWeight: 700 }}>{muted ? 'Unmute' : 'Mute'}</span>
         </button>
       </div>
-      <DoomEmulator key={sessionKey} muted={muted} />
+      <iframe
+        ref={iframeRef}
+        style={{
+          flex: 1,
+          width: '100%',
+          border: 'none',
+          background: '#000',
+        }}
+        allow="autoplay"
+        title="DOOM"
+      />
       <div style={{
         padding: '10px 24px',
         borderTop: '1px solid #333',
