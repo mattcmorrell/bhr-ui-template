@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 // Injected directly into the js-dos container element so it scopes tightly
 // and can't be beaten by Tailwind utility classes (inline style > class styles)
@@ -46,30 +46,107 @@ const kbd: React.CSSProperties = {
   fontFamily: 'Inter, sans-serif',
 };
 
-export function Doom() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const loadedRef = useRef(false);
+// Track all AudioContexts created by js-dos so we can kill them on unmount
+const trackedContexts = new Set<AudioContext>();
+let audioPatched = false;
+let globalMuted = false;
+let muteInterval: ReturnType<typeof setInterval> | null = null;
 
-  useEffect(() => {
-    if (loadedRef.current || !containerRef.current) return;
-    loadedRef.current = true;
+function patchAudioContext() {
+  if (audioPatched) return;
+  audioPatched = true;
 
-    const container = containerRef.current;
+  const OrigAudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!OrigAudioContext) return;
 
-    // Load js-dos v8 from CDN
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://v8.js-dos.com/latest/js-dos.css';
-    document.head.appendChild(link);
+  const PatchedAudioContext = function (this: AudioContext, ...args: any[]) {
+    const ctx = new OrigAudioContext(...args);
+    trackedContexts.add(ctx);
+    // If globally muted, immediately suspend new contexts
+    if (globalMuted) ctx.suspend();
+    return ctx;
+  } as any;
+  PatchedAudioContext.prototype = OrigAudioContext.prototype;
+  (window as any).AudioContext = PatchedAudioContext;
+  if ((window as any).webkitAudioContext) {
+    (window as any).webkitAudioContext = PatchedAudioContext;
+  }
+}
 
-    // Inject override styles into the container itself (not <head>)
-    // so they load after js-dos CSS and win specificity battles
-    const style = document.createElement('style');
-    style.textContent = JSDOS_NUKE_CSS;
+function closeAllAudioContexts() {
+  if (muteInterval) { clearInterval(muteInterval); muteInterval = null; }
+  trackedContexts.forEach((ctx) => {
+    try {
+      if (ctx.state !== 'closed') ctx.close();
+    } catch { /* already closed */ }
+  });
+  trackedContexts.clear();
+}
 
+function setMuteAll(muted: boolean) {
+  globalMuted = muted;
+  // Clear any existing enforcement interval
+  if (muteInterval) { clearInterval(muteInterval); muteInterval = null; }
+
+  const apply = () => {
+    trackedContexts.forEach((ctx) => {
+      try {
+        if (muted && ctx.state === 'running') ctx.suspend();
+        if (!muted && ctx.state === 'suspended') ctx.resume();
+      } catch { /* closed */ }
+    });
+  };
+
+  apply();
+  // js-dos creates/resumes contexts over time — enforce periodically while muted
+  if (muted) {
+    muteInterval = setInterval(apply, 500);
+  }
+}
+
+// Load the js-dos script once globally — it must survive across navigations
+let scriptLoaded = false;
+function ensureScript(): Promise<void> {
+  patchAudioContext();
+
+  if (scriptLoaded && typeof (window as any).Dos === 'function') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    if (typeof (window as any).Dos === 'function') {
+      scriptLoaded = true;
+      resolve();
+      return;
+    }
     const script = document.createElement('script');
     script.src = 'https://v8.js-dos.com/latest/js-dos.js';
     script.onload = () => {
+      scriptLoaded = true;
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
+}
+
+function DoomEmulator({ muted }: { muted: boolean }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle mute/unmute via gain nodes (reliable unlike suspend/resume)
+  useEffect(() => {
+    setMuteAll(muted);
+  }, [muted]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const container = containerRef.current;
+
+    const style = document.createElement('style');
+    style.textContent = JSDOS_NUKE_CSS;
+
+    let cancelled = false;
+
+    ensureScript().then(() => {
+      if (cancelled || !containerRef.current) return;
       // @ts-expect-error js-dos global
       Dos(container, {
         url: 'https://v8.js-dos.com/bundles/doom.jsdos',
@@ -77,16 +154,43 @@ export function Doom() {
         mouseSensitivity: 0.9,
         mouseCapture: true,
       });
-      // Inject style after js-dos renders its first frame
       requestAnimationFrame(() => container.appendChild(style));
-    };
-    document.head.appendChild(script);
+    });
 
     return () => {
-      link.remove();
+      cancelled = true;
+      // Close all tracked AudioContexts created by js-dos
+      closeAllAudioContexts();
+      // Kill any media elements
+      container.querySelectorAll('audio, video').forEach((el) => el.remove());
+      // Nuke the container contents to stop the emulator
+      container.innerHTML = '';
       style.remove();
-      script.remove();
     };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        flex: 1,
+        width: '100%',
+        background: '#000',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    />
+  );
+}
+
+export function Doom() {
+  const [sessionKey, setSessionKey] = useState(0);
+  const [muted, setMuted] = useState(false);
+
+  const toggleMute = useCallback(() => setMuted((m) => !m), []);
+
+  useEffect(() => {
+    return () => setSessionKey((k) => k + 1);
   }, []);
 
   return (
@@ -102,24 +206,41 @@ export function Doom() {
         padding: '16px 24px',
         borderBottom: '1px solid #333',
         flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
       }}>
-        <h1 style={{ color: '#c41e1e', fontSize: '24px', fontWeight: 700, margin: 0, fontFamily: 'Inter, sans-serif' }}>
-          DOOM
-        </h1>
-        <p style={{ color: '#888', fontSize: '13px', margin: '4px 0 0', fontFamily: 'Inter, sans-serif' }}>
-          Employee Wellness Program
-        </p>
+        <div>
+          <h1 style={{ color: '#c41e1e', fontSize: '24px', fontWeight: 700, margin: 0, fontFamily: 'Inter, sans-serif' }}>
+            DOOM
+          </h1>
+          <p style={{ color: '#888', fontSize: '13px', margin: '4px 0 0', fontFamily: 'Inter, sans-serif' }}>
+            Employee Wellness Program
+          </p>
+        </div>
+        <button
+          onClick={toggleMute}
+          title={muted ? 'Unmute' : 'Mute'}
+          style={{
+            background: muted ? '#c41e1e' : 'transparent',
+            border: '2px solid #c41e1e',
+            borderRadius: '8px',
+            padding: '8px 16px',
+            color: '#fff',
+            fontSize: '20px',
+            fontFamily: 'Inter, sans-serif',
+            cursor: 'pointer',
+            transition: 'background 0.2s, color 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '24px', lineHeight: 1 }}>{muted ? '🔇' : '🔊'}</span>
+          <span style={{ fontSize: '14px', fontWeight: 700 }}>{muted ? 'Unmute' : 'Mute'}</span>
+        </button>
       </div>
-      <div
-        ref={containerRef}
-        style={{
-          flex: 1,
-          width: '100%',
-          background: '#000',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      />
+      <DoomEmulator key={sessionKey} muted={muted} />
       <div style={{
         padding: '10px 24px',
         borderTop: '1px solid #333',
