@@ -38,3 +38,5 @@ export { JobLocationOption } from './JobLocationOption';
 export { JobWizardSidebar } from './JobWizardSidebar';
 export { JobInformationForm } from './JobInformationForm';
 export { SuccessNotification } from './SuccessNotification';
+export { JobOrganizationCard } from './JobOrganizationCard';
+export { DeleteJobProfileModal } from './DeleteJobProfileModal';

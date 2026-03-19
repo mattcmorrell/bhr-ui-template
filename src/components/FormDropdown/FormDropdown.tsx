@@ -14,6 +14,7 @@ interface FormDropdownProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  footerAction?: { label: string; onClick: () => void };
 }
 
 export function FormDropdown({
@@ -24,6 +25,7 @@ export function FormDropdown({
   placeholder = '-Select-',
   disabled = false,
   className = '',
+  footerAction,
 }: FormDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,21 @@ export function FormDropdown({
                 {option.label}
               </button>
             ))}
+            {footerAction && (
+              <>
+                <div className="border-t border-[var(--border-neutral-x-weak)]" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    footerAction.onClick();
+                    setIsOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-[15px] text-[var(--color-link)] hover:underline font-semibold"
+                >
+                  {footerAction.label}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

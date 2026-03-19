@@ -120,6 +120,7 @@ import {
   Settings,
   CirclePlus,
   Gamepad2,
+  Info,
 } from 'lucide-react';
 
 export type IconName =
@@ -422,6 +423,15 @@ export function Icon({ name, size = 24, className = '', variant = 'solid', style
   }
 
   if (name === 'circle-plus-lined') {
+    return <CirclePlus size={size} className={className} strokeWidth={1.5} style={style} />;
+  }
+
+  // Regular (outline) variants for circle-info and circle-plus
+  if (name === 'circle-info' && variant === 'regular') {
+    return <Info size={size} className={className} strokeWidth={2} style={style} />;
+  }
+
+  if (name === 'circle-plus' && variant === 'regular') {
     return <CirclePlus size={size} className={className} strokeWidth={1.5} style={style} />;
   }
 

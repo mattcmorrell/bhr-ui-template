@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Icon } from '../../components';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Icon, JobOrganizationCard } from '../../components';
 import {
   settingsNavItems,
   accountSubTabs,
@@ -15,6 +16,14 @@ import {
 export function Settings() {
   const [activeNav, setActiveNav] = useState('account');
   const [activeSubTab, setActiveSubTab] = useState('account-info');
+  const location = useLocation();
+
+  useEffect(() => {
+    const state = location.state as { activeNav?: string } | null;
+    if (state?.activeNav === 'job-organization') {
+      setActiveNav('job-organization');
+    }
+  }, [location.state]);
 
   return (
     <div className="min-h-full">
@@ -60,8 +69,19 @@ export function Settings() {
 
         {/* Main Content Area */}
         <main className="flex-1 px-10 pt-0 pb-10 overflow-y-auto">
-          {/* Account Card */}
-          <div className="bg-[var(--surface-neutral-white)] rounded-[var(--radius-medium)] p-8">
+          {activeNav === 'job-organization' ? (
+            <div className="bg-[var(--surface-neutral-white)] rounded-[var(--radius-medium)] p-8">
+              <h2
+                className="text-[22px] font-semibold text-[var(--color-primary-strong)] mb-6 pb-6 border-b border-[var(--border-neutral-x-weak)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
+              >
+                Job Organization
+              </h2>
+              <JobOrganizationCard />
+            </div>
+          ) : (
+            /* Account Card */
+            <div className="bg-[var(--surface-neutral-white)] rounded-[var(--radius-medium)] p-8">
             {/* Account Heading */}
             <h2
               className="text-[22px] font-semibold text-[var(--color-primary-strong)] mb-6 pb-6 border-b border-[var(--border-neutral-x-weak)]"
@@ -316,7 +336,8 @@ export function Settings() {
             </div>
           </div>
         </div>
-          </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

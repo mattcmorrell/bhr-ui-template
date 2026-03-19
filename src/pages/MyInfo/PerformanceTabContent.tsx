@@ -3,20 +3,22 @@ import { Icon, Tabs, Dropdown } from '../../components';
 import { FeedbackTabContent } from './FeedbackTabContent';
 import { GoalsTabContent } from './GoalsTabContent';
 import { AssessmentsTabContent } from './AssessmentsTabContent';
+import { OneOnOnesTabContent } from './OneOnOnesTabContent';
 
 interface PerformanceTabContentProps {
   employeeName: string;
 }
 
 export function PerformanceTabContent({ employeeName }: PerformanceTabContentProps) {
-  // State for sub-tabs (Goals, Feedback, Assessments)
-  const [activeSubTab, setActiveSubTab] = useState<'goals' | 'feedback' | 'assessments'>('assessments');
+  // State for sub-tabs (1:1s, Goals, Feedback, Assessments)
+  const [activeSubTab, setActiveSubTab] = useState<'one-on-ones' | 'goals' | 'feedback' | 'assessments'>('assessments');
 
   // State for time period filter
   const [timePeriod, setTimePeriod] = useState('last-6-months');
 
   // Sub-tab configuration
   const subTabs = [
+    { id: 'one-on-ones', label: '1:1s', icon: 'calendar' },
     { id: 'goals', label: 'Goals', icon: 'bullseye' },
     { id: 'feedback', label: 'Feedback', icon: 'bullhorn' },
     { id: 'assessments', label: 'Assessments', icon: 'clipboard' },
@@ -49,7 +51,7 @@ export function PerformanceTabContent({ employeeName }: PerformanceTabContentPro
         <Tabs
           tabs={subTabs}
           activeTab={activeSubTab}
-          onTabChange={(id) => setActiveSubTab(id as 'goals' | 'feedback' | 'assessments')}
+          onTabChange={(id) => setActiveSubTab(id as 'one-on-ones' | 'goals' | 'feedback' | 'assessments')}
           variant="default"
         />
 
@@ -70,6 +72,9 @@ export function PerformanceTabContent({ employeeName }: PerformanceTabContentPro
 
         {/* Sub-tab Content */}
         <div className="mt-4">
+          {activeSubTab === 'one-on-ones' && (
+            <OneOnOnesTabContent employeeName={employeeName} />
+          )}
           {activeSubTab === 'feedback' && (
             <FeedbackTabContent employeeName={employeeName} />
           )}
