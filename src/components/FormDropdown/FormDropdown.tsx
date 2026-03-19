@@ -1,5 +1,26 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon } from '../Icon';
+
+/** Minimum width so trigger + panel fit the longest option, placeholder, footer, or label (15px text + caret chrome). */
+function useMinWidthFromContent(
+  label: string | undefined,
+  options: { label: string }[],
+  placeholder: string,
+  footerLabel: string | undefined
+) {
+  return useMemo(() => {
+    const strings = [
+      ...(label ? [label] : []),
+      ...options.map((o) => o.label),
+      placeholder,
+      ...(footerLabel ? [footerLabel] : []),
+    ];
+    const longest = strings.reduce((max, s) => (s.length > max.length ? s : max), '');
+    const charCount = Math.max(longest.length, 1);
+    // ch ≈ avg char width at 15px; 4rem ≈ pl-4 + pr-3 + divider + caret (~64px)
+    return `min(100%, calc(${charCount}ch + 4rem))` as const;
+  }, [label, options, placeholder, footerLabel]);
+}
 
 interface FormDropdownOption {
   value: string;
@@ -30,6 +51,8 @@ export function FormDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const minWidth = useMinWidthFromContent(label, options, placeholder, footerAction?.label);
+
   const selectedOption = options.find((opt) => opt.value === value);
 
   // Close dropdown when clicking outside
@@ -50,7 +73,11 @@ export function FormDropdown({
   };
 
   return (
-    <div className={`flex flex-col gap-2 ${className}`} ref={dropdownRef}>
+    <div
+      className={`flex max-w-full flex-col gap-2 ${className}`}
+      style={{ minWidth }}
+      ref={dropdownRef}
+    >
       {label && (
         <label className="text-[14px] font-medium leading-[20px] text-[var(--text-neutral-x-strong)]">
           {label}

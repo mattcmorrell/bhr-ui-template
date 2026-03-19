@@ -138,16 +138,17 @@ export function JobProfileDetail() {
           {/* Form fields */}
           <div className="space-y-6">
             {/* Row 1: Job Title | 20px | Job Family */}
-            <div className="flex items-start" style={{ gap: '20px' }}>
-              <div className="max-w-[400px]">
+            <div className="flex flex-wrap items-start" style={{ gap: '20px' }}>
+              <div className="w-full max-w-[400px] shrink-0">
                 <TextInput
+                  className="w-full"
                   label="Job Title *"
                   value={jobTitle}
                   onChange={setJobTitle}
                   placeholder="Job profile name"
                 />
               </div>
-              <div className="max-w-[400px]">
+              <div className="min-w-0 w-max max-w-[400px]">
                 <FormDropdown
                   label="Job Family"
                   options={jobFamilies}
@@ -158,6 +159,28 @@ export function JobProfileDetail() {
                     label: 'Add New Job Family',
                     onClick: handleAddNewJobFamily,
                   }}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Career Track | 20px | Level */}
+            <div className="flex flex-wrap items-start" style={{ gap: '20px' }}>
+              <div className="min-w-0 w-max max-w-[400px]">
+                <FormDropdown
+                  label="Career Track"
+                  options={careerTrackOptions}
+                  value={careerTrack}
+                  onChange={setCareerTrack}
+                  placeholder="-Select-"
+                />
+              </div>
+              <div className="min-w-0 w-max max-w-[400px]">
+                <FormDropdown
+                  label="Level"
+                  options={levelOptions}
+                  value={level}
+                  onChange={setLevel}
+                  placeholder="-Select-"
                 />
               </div>
             </div>
@@ -180,31 +203,10 @@ export function JobProfileDetail() {
               </div>
             </div>
 
-            {/* Row 2: Career Track | 20px | Level */}
-            <div className="flex items-start" style={{ gap: '20px' }}>
-              <div className="max-w-[400px]">
-                <FormDropdown
-                  label="Career Track"
-                  options={careerTrackOptions}
-                  value={careerTrack}
-                  onChange={setCareerTrack}
-                  placeholder="-Select-"
-                />
-              </div>
-              <div className="max-w-[400px]">
-                <FormDropdown
-                  label="Level"
-                  options={levelOptions}
-                  value={level}
-                  onChange={setLevel}
-                  placeholder="-Select-"
-                />
-              </div>
-            </div>
-
             {/* Internal Job Code */}
-            <div className="max-w-[400px]">
+            <div className="w-full max-w-[400px]">
               <TextInput
+                className="w-full"
                 label="Internal Job Code"
                 value={internalJobCode}
                 onChange={setInternalJobCode}
