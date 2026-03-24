@@ -26,6 +26,7 @@ export function Button({
     rounded-[var(--radius-full)]
     transition-all duration-200
     cursor-pointer
+    disabled:opacity-50 disabled:cursor-not-allowed
   `;
 
   const variantStyles = {
@@ -33,31 +34,31 @@ export function Button({
       bg-[var(--surface-neutral-white)]
       border border-[var(--border-neutral-medium)]
       text-[var(--text-neutral-strong)]
-      hover:bg-[var(--surface-neutral-xx-weak)]
+      enabled:hover:bg-[var(--surface-neutral-xx-weak)]
     `,
     primary: `
       bg-[var(--color-primary-strong)]
       border border-transparent
       text-white
-      hover:bg-[var(--color-primary-medium)]
+      enabled:hover:bg-[var(--color-primary-medium)]
     `,
     ghost: `
       bg-transparent
       border border-transparent
       text-[var(--text-neutral-strong)]
-      hover:bg-[var(--surface-neutral-xx-weak)]
+      enabled:hover:bg-[var(--surface-neutral-xx-weak)]
     `,
     outlined: `
       bg-[var(--surface-neutral-white)]
       border border-[var(--color-primary-strong)]
       text-[var(--color-primary-strong)]
-      hover:bg-[var(--surface-neutral-xx-weak)]
+      enabled:hover:bg-[var(--surface-neutral-xx-weak)]
     `,
     text: `
       bg-transparent
       border border-transparent
       text-[#0b4fd1]
-      hover:underline
+      enabled:hover:underline
       h-auto
       px-0
     `,

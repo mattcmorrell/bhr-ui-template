@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
 import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype, Doom } from './pages';
 import { JobOpeningDetail } from './pages/JobOpeningDetail';
-import { JobProfileDetail } from './pages/JobProfileDetail';
+import { JobProfileDetailPage } from './pages/JobProfileDetail';
 import { Chat } from './pages/Chat';
 import { ChatTransitionsDemo } from './pages/ChatTransitionsDemo';
 import { TextReflowDemo } from './pages/TextReflowDemo';
@@ -43,7 +43,7 @@ function App() {
                   <Route path="/payroll" element={<Payroll />} />
                   <Route path="/inbox" element={<Inbox />} />
                   <Route path="/settings" element={<Settings />} />
-                  <Route path="/settings/job-profile/:id" element={<JobProfileDetail />} />
+                  <Route path="/settings/job-profile/:id" element={<JobProfileDetailPage />} />
                   <Route path="/doom" element={<Doom />} />
                 </Routes>
               </AppLayout>

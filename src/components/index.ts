@@ -40,3 +40,5 @@ export { JobInformationForm } from './JobInformationForm';
 export { SuccessNotification } from './SuccessNotification';
 export { JobOrganizationCard } from './JobOrganizationCard';
 export { DeleteJobProfileModal } from './DeleteJobProfileModal';
+export { CompetencyEditModal, type CompetencyFormValues } from './CompetencyEditModal';
+export { JobTitleCatalogCombobox } from './JobTitleCatalogCombobox';

@@ -1,4 +1,5 @@
 import type { IconName } from '../components/Icon';
+import { jobLibProfileGroups } from './parseJobLibCsv';
 
 export interface SettingsNavItem {
   id: string;
@@ -150,6 +151,22 @@ export interface JobOrganizationNavItem {
   label: string;
 }
 
+export type JobProfileCompetencyLevel = 'Basic' | 'Intermediate' | 'Advanced' | 'Expert';
+
+export interface JobProfileCompetency {
+  id: string;
+  name: string;
+  description: string;
+  level: JobProfileCompetencyLevel;
+}
+
+export const competencyLevelOptions: { value: JobProfileCompetencyLevel; label: string }[] = [
+  { value: 'Basic', label: 'Basic' },
+  { value: 'Intermediate', label: 'Intermediate' },
+  { value: 'Advanced', label: 'Advanced' },
+  { value: 'Expert', label: 'Expert' },
+];
+
 export interface JobProfile {
   id: string;
   name: string;
@@ -157,6 +174,9 @@ export interface JobProfile {
   people: number;
   jobDescription?: string;
   internalJobCode?: string;
+  /** Omit = inherit job family from nested group in `jobProfileGroups`. `null` or "" = Unassigned. */
+  jobFamilyGroupId?: string | null;
+  competencies?: JobProfileCompetency[];
 }
 
 export interface JobProfileGroup {
@@ -174,6 +194,87 @@ export const jobOrganizationNavItems: JobOrganizationNavItem[] = [
   { id: 'eeo-categories', label: 'EEO Categories' },
 ];
 
+export interface OrganizationCountRow {
+  id: string;
+  name: string;
+  people: number;
+}
+
+export interface OrganizationLocationRow {
+  id: string;
+  name: string;
+  address: string;
+  people: number;
+}
+
+export const organizationDivisions: OrganizationCountRow[] = [
+  { id: 'div-apac', name: 'Asia-Pacific', people: 8 },
+  { id: 'div-eu', name: 'Europe', people: 13 },
+  { id: 'div-na', name: 'North America', people: 65 },
+];
+
+export const organizationDepartments: OrganizationCountRow[] = [
+  { id: 'dept-cs', name: 'Customer Success', people: 13 },
+  { id: 'dept-fin', name: 'Finance', people: 4 },
+  { id: 'dept-hr', name: 'Human Resources', people: 15 },
+  { id: 'dept-it', name: 'IT', people: 5 },
+  { id: 'dept-mkt', name: 'Marketing', people: 7 },
+  { id: 'dept-ops', name: 'Operations', people: 7 },
+  { id: 'dept-prod', name: 'Product', people: 17 },
+  { id: 'dept-sales', name: 'Sales', people: 21 },
+  { id: 'dept-ux', name: 'UX', people: 0 },
+];
+
+export const organizationTeams: OrganizationCountRow[] = [
+  { id: 'team-blue-steel', name: 'Blue Steel', people: 5 },
+  { id: 'team-mobile', name: 'Mobile Products', people: 4 },
+];
+
+export const organizationLocations: OrganizationLocationRow[] = [
+  {
+    id: 'loc-lindon',
+    name: 'Lindon, Utah',
+    address: '335 South 560 West, Lindon, Utah 84042, United States',
+    people: 59,
+  },
+  {
+    id: 'loc-london',
+    name: 'London, UK',
+    address: '2/3 Conduit St, Mayfair, London, City of W1S 2BX, United Kingdom',
+    people: 14,
+  },
+  {
+    id: 'loc-remote',
+    name: 'Remote Worker',
+    address: 'Remote Location',
+    people: 1,
+  },
+  {
+    id: 'loc-sydney',
+    name: 'Sydney, Australia',
+    address: '201 Elizabeth St, Sydney, New South Wales 2000, Australia',
+    people: 9,
+  },
+  {
+    id: 'loc-vancouver',
+    name: 'Vancouver, Canada',
+    address: '720 Granville St, Vancouver, British Columbia V6Z 1E4, Canada',
+    people: 7,
+  },
+];
+
+export const organizationEeoCategories: OrganizationCountRow[] = [
+  { id: 'eeo-sales', name: 'Sales Workers', people: 12 },
+  { id: 'eeo-prof', name: 'Professionals', people: 9 },
+  {
+    id: 'eeo-exec',
+    name: 'Executive/Senior Level Officials and Managers',
+    people: 2,
+  },
+  { id: 'eeo-tech', name: 'Technicians', people: 0 },
+  { id: 'eeo-uncat', name: 'Uncategorized', people: 1 },
+];
+
 export const careerTrackOptions = [
   { value: 'E', label: 'Executive (E)' },
   { value: 'M', label: 'Management/People Leader (M)' },
@@ -187,7 +288,7 @@ export const levelOptions = Array.from({ length: 10 }, (_, i) => ({
   label: String(i + 1),
 }));
 
-export const jobProfileGroups: JobProfileGroup[] = [
+const builtInJobProfileGroups: JobProfileGroup[] = [
   {
     id: 'product-design',
     name: 'Product Design',
@@ -200,7 +301,7 @@ export const jobProfileGroups: JobProfileGroup[] = [
         careerTrackLevel: 'P3',
         people: 5,
         jobDescription:
-          'This role involves collaborating closely with various teams to create user-focused designs that enhance our product experience. Responsibilities include conducting user research, designing wireframes and prototypes, and refining designs based on user feedback. Active participation in design discussions and maintaining our design system is essential. The ideal candidate possesses a strong understanding of design principles, is proficient in tools like Sketch or Figma, and has a genuine passion for crafting user-friendly and engaging experiences. Join us in innovating and elevating our product offerings!',
+          'This role focuses on creating and refining concepts for new or improved products and experiences, balancing functionality, aesthetics, and user experience. Responsibilities include conducting user research, developing prototypes, and collaborating with engineering and marketing teams to ensure design feasibility and market fit. Proficiency in design software, strong visualization skills, and an understanding of how designs move into delivery are essential. The position often requires presenting ideas and revisions to stakeholders, as well as iterating designs based on feedback. Attention to detail, problem-solving, and project management abilities are key for successfully bringing innovative work to market. This profile reflects a standard scope for the level, with clear expectations for quality and collaboration.',
       },
       { id: '4', name: 'Sr. Product Designer', careerTrackLevel: 'P4', people: 6 },
       { id: '5', name: 'Staff Product Designer', careerTrackLevel: 'P5', people: 2 },
@@ -219,6 +320,13 @@ export const jobProfileGroups: JobProfileGroup[] = [
       { id: '12', name: 'Product Manager II', careerTrackLevel: 'P3', people: 1 },
     ],
   },
+];
+
+export const jobProfileGroups: JobProfileGroup[] = [
+  ...builtInJobProfileGroups,
+  ...(jobLibProfileGroups.filter(
+    (g) => !builtInJobProfileGroups.some((b) => b.id === g.id)
+  ) as JobProfileGroup[]),
 ];
 
 export const jobFamilies = jobProfileGroups.map((g) => ({ value: g.id, label: g.name }));

@@ -1,2 +1,2 @@
-export { JobProfileDetail } from './JobProfileDetail';
+export { JobProfileDetail, JobProfileDetailPage } from './JobProfileDetail';
 export { default } from './JobProfileDetail';

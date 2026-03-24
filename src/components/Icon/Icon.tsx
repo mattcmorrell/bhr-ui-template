@@ -47,6 +47,7 @@ import {
   faDoorOpen,
   faRightToBracket,
   faChartLine,
+  faChartColumn,
   faPlane,
   faGraduationCap,
   faShield,
@@ -88,6 +89,8 @@ import {
   faSpinner,
   faArrowLeft,
   faRotateLeft,
+  faBoxArchive,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons';
 import { faLinkedin } from '@fortawesome/free-brands-svg-icons';
 import {
@@ -148,6 +151,8 @@ export type IconName =
   | 'chevron-up'
   | 'arrow-down-to-line'
   | 'trash-can'
+  | 'box-archive'
+  | 'triangle-exclamation'
   | 'file'
   | 'file-audio'
   | 'image'
@@ -174,6 +179,7 @@ export type IconName =
   | 'door-open'
   | 'door-closed'
   | 'chart-line'
+  | 'chart-column'
   | 'plane'
   | 'graduation-cap'
   | 'shield'
@@ -271,6 +277,8 @@ const faIconMap = {
   'chevron-up': faChevronUp,
   'arrow-down-to-line': faArrowDown,
   'trash-can': faTrashCan,
+  'box-archive': faBoxArchive,
+  'triangle-exclamation': faTriangleExclamation,
   'file': faFile,
   'file-audio': faFileAudio,
   'image': faImage,
@@ -299,6 +307,7 @@ const faIconMap = {
   'door-open': faDoorOpen,
   'door-closed': faRightToBracket,
   'chart-line': faChartLine,
+  'chart-column': faChartColumn,
   'plane': faPlane,
   'graduation-cap': faGraduationCap,
   'shield': faShield,
