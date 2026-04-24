@@ -105,3 +105,25 @@ export function buildMockJobDescriptionDraft(params: BuildMockJobDescriptionDraf
   }
   return sections.join('\n\n');
 }
+
+/** Mock “longer” pass for AI refine — appends an organizational-context paragraph. */
+export function mockExpandJobDescription(text: string, jobTitle: string): string {
+  const t = text.trim();
+  const role = jobTitle.trim() || 'this role';
+  const addition = `In practice, ${role} is expected to align day-to-day work with team commitments, document decisions when they affect others, and raise tradeoffs early when scope or timelines are at risk. This section complements competencies defined elsewhere on the job profile.`;
+  return t ? `${t}\n\n${addition}` : addition;
+}
+
+/** Mock “shorter” pass — keeps roughly half of paragraphs or sentences. */
+export function mockShortenJobDescription(text: string): string {
+  const t = text.trim();
+  if (!t) return '';
+  const blocks = t.split(/\n\n+/).filter(Boolean);
+  if (blocks.length >= 2) {
+    const keep = Math.max(1, Math.ceil(blocks.length / 2));
+    return blocks.slice(0, keep).join('\n\n');
+  }
+  const sentences = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [t];
+  const n = Math.max(1, Math.ceil(sentences.length / 2));
+  return sentences.slice(0, n).join(' ').trim();
+}

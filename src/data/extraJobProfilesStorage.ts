@@ -32,3 +32,12 @@ export function upsertExtraJobProfile(profile: JobProfile): void {
 export function findExtraJobProfileById(id: string): JobProfile | undefined {
   return readExtraJobProfiles().find((p) => p.id === id);
 }
+
+export function removeExtraJobProfile(id: string): void {
+  const next = readExtraJobProfiles().filter((p) => p.id !== id);
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
+export function clearExtraJobProfiles(): void {
+  sessionStorage.removeItem(STORAGE_KEY);
+}

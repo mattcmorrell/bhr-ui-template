@@ -54,7 +54,7 @@ export function CompetencyCard(props: CompetencyCardProps) {
       <span className="mt-3 inline-flex self-start rounded-[var(--radius-full)] bg-[var(--surface-neutral-x-weak)] px-3 py-1 text-[13px] font-medium text-[var(--text-neutral-strong)]">
         {level}
       </span>
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-auto pt-5 flex flex-wrap gap-2">
         {props.variant === 'saved' ? (
           <>
             <Button type="button" variant="standard" icon="pen" onClick={props.onEdit}>
@@ -100,7 +100,7 @@ export function CompetencyCard(props: CompetencyCardProps) {
           boxShadow: 'var(--shadow-300)',
         }}
       >
-        <article className="flex flex-col rounded-[21px] bg-[var(--surface-neutral-white)] p-6">{body}</article>
+        <article className="flex flex-col h-full rounded-[22.5px] bg-[var(--surface-neutral-white)] p-6">{body}</article>
       </div>
     );
   }

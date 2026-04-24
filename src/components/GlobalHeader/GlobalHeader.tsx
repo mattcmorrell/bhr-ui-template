@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Icon } from '../Icon';
 import bamboohrLogo from '../../assets/images/bamboohr-logo.svg';
+import mizuLogo from '../../assets/images/mizu-logo.png';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface GlobalHeaderProps {
   className?: string;
@@ -10,6 +12,7 @@ interface GlobalHeaderProps {
 export function GlobalHeader({ className = '' }: GlobalHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { mizuMode } = useTheme();
   const isOnSettings = location.pathname === '/settings';
   const isOnInbox = location.pathname === '/inbox';
   const [isChatPanelOpen, setIsChatPanelOpen] = useState(() => {
@@ -39,9 +42,9 @@ export function GlobalHeader({ className = '' }: GlobalHeaderProps) {
     >
       {/* Logo */}
       <img
-        src={bamboohrLogo}
-        alt="BambooHR"
-        className="w-[194px] h-[29px]"
+        src={mizuMode ? mizuLogo : bamboohrLogo}
+        alt={mizuMode ? "Mizu Pool Covers" : "BambooHR"}
+        className={mizuMode ? "h-[36px] w-auto" : "w-[194px] h-[29px]"}
       />
 
       {/* Right Section */}

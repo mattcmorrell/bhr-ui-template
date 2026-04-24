@@ -1,9 +1,11 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Icon } from '../Icon';
 import { Tabs } from '../Tabs';
 import { DeleteJobProfileModal } from '../DeleteJobProfileModal';
 import { CantArchiveJobProfileModal } from '../CantArchiveJobProfileModal';
+import { JobProfilePeopleModal } from '../JobProfilePeopleModal';
 import {
   jobOrganizationNavItems,
   jobProfileGroups,
@@ -17,15 +19,26 @@ import {
   type OrganizationCountRow,
   type OrganizationLocationRow,
 } from '../../data/settingsData';
-import { readExtraJobProfiles } from '../../data/extraJobProfilesStorage';
-import { bucketJobProfilesToGroups } from '../../data/jobProfileGrouping';
+import { readExtraJobProfiles, removeExtraJobProfile, clearExtraJobProfiles } from '../../data/extraJobProfilesStorage';
+import {
+  bucketJobProfilesToGroups,
+  bucketUnassignedStartingGroups,
+} from '../../data/jobProfileGrouping';
+import { applyBaselineToJobProfileGroups } from '../../data/jobProfilePrototypeBaseline';
+import { JobProfilesOnboardingIngress } from '../JobProfilesPrototype/JobProfilesOnboardingIngress';
 import { OrganizationLocationsTab, OrganizationTwoColumnTab } from './OrganizationListTab';
 
 const gearMenuItems: { id: string; label: string }[] = [
   { id: 'export', label: 'Export job profiles' },
   { id: 'import', label: 'Import job profiles' },
-  { id: 'columns', label: 'Customize columns' },
+  { id: 'mizu', label: 'MIZU' },
+  { id: 'columns', label: 'RESTART PROTOTYPE' },
 ];
+
+const organizeJobFamiliesGearItem = {
+  id: 'organize-job-families',
+  label: 'Organize job families',
+} as const;
 
 const addNewMenuItems: { id: string; label: string }[] = [
   { id: 'new-job-profile', label: 'New Job Profile' },
@@ -41,7 +54,25 @@ function formatArchivedDateLabel() {
   return new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export function JobOrganizationCard() {
+/** Prototype: simulate Power Edit clearing assignees without mutating static seed data. */
+function applyJobProfilePeopleOverrides(
+  groups: JobProfileGroup[],
+  overrides: Record<string, number>,
+): JobProfileGroup[] {
+  if (Object.keys(overrides).length === 0) return groups;
+  return groups.map((g) => ({
+    ...g,
+    profiles: g.profiles.map((p) => (p.id in overrides ? { ...p, people: overrides[p.id] } : p)),
+  }));
+}
+
+export type JobOrganizationGroupingMode = 'mapped' | 'unassigned';
+
+export interface JobOrganizationCardProps {
+  groupingMode?: JobOrganizationGroupingMode;
+}
+
+export function JobOrganizationCard({ groupingMode = 'mapped' }: JobOrganizationCardProps) {
   const [activeTab, setActiveTab] = useState('job-profiles');
   const [profilesListTab, setProfilesListTab] = useState<'current' | 'archived'>('current');
   const [gearMenuOpen, setGearMenuOpen] = useState(false);
@@ -54,6 +85,13 @@ export function JobOrganizationCard() {
   const [archivedAtByProfileId, setArchivedAtByProfileId] = useState<Record<string, string>>({});
   const [profileToDelete, setProfileToDelete] = useState<JobProfile | null>(null);
   const [profileBlockedFromArchive, setProfileBlockedFromArchive] = useState<JobProfile | null>(null);
+  const [prototypePeopleByProfileId, setPrototypePeopleByProfileId] = useState<Record<string, number>>({});
+  const [resetVersion, setResetVersion] = useState(0);
+  const [peopleModal, setPeopleModal] = useState<{
+    jobFamilyName: string;
+    jobProfileName: string;
+    peopleCount: number;
+  } | null>(null);
 
   const [departmentRows, setDepartmentRows] = useState<OrganizationCountRow[]>(organizationDepartments);
   const [divisionRows, setDivisionRows] = useState<OrganizationCountRow[]>(organizationDivisions);
@@ -65,26 +103,67 @@ export function JobOrganizationCard() {
   const location = useLocation();
 
   const currentGroups = useMemo(() => {
-    return bucketJobProfilesToGroups(
-      jobProfileGroups,
-      readExtraJobProfiles(),
-      deletedProfileIds,
-      archivedAtByProfileId,
-      'current',
-    );
+    const raw =
+      groupingMode === 'unassigned'
+        ? bucketUnassignedStartingGroups(
+            jobProfileGroups,
+            readExtraJobProfiles(),
+            deletedProfileIds,
+            archivedAtByProfileId,
+            'current',
+          )
+        : bucketJobProfilesToGroups(
+            jobProfileGroups,
+            readExtraJobProfiles(),
+            deletedProfileIds,
+            archivedAtByProfileId,
+            'current',
+          );
+    const withPeople = applyJobProfilePeopleOverrides(raw, prototypePeopleByProfileId);
+    return applyBaselineToJobProfileGroups(withPeople, groupingMode, resetVersion);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- location.key: re-read sessionStorage when returning from detail
-  }, [location.key, deletedProfileIds, archivedAtByProfileId]);
+  }, [
+    groupingMode,
+    location.key,
+    deletedProfileIds,
+    archivedAtByProfileId,
+    prototypePeopleByProfileId,
+    resetVersion,
+  ]);
 
   const archivedGroups = useMemo(() => {
-    return bucketJobProfilesToGroups(
-      jobProfileGroups,
-      readExtraJobProfiles(),
-      deletedProfileIds,
-      archivedAtByProfileId,
-      'archived',
-    );
+    const raw =
+      groupingMode === 'unassigned'
+        ? bucketUnassignedStartingGroups(
+            jobProfileGroups,
+            readExtraJobProfiles(),
+            deletedProfileIds,
+            archivedAtByProfileId,
+            'archived',
+          )
+        : bucketJobProfilesToGroups(
+            jobProfileGroups,
+            readExtraJobProfiles(),
+            deletedProfileIds,
+            archivedAtByProfileId,
+            'archived',
+          );
+    const withPeople = applyJobProfilePeopleOverrides(raw, prototypePeopleByProfileId);
+    return applyBaselineToJobProfileGroups(withPeople, groupingMode, resetVersion);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- location.key: re-read sessionStorage when returning from detail
-  }, [location.key, deletedProfileIds, archivedAtByProfileId]);
+  }, [
+    groupingMode,
+    location.key,
+    deletedProfileIds,
+    archivedAtByProfileId,
+    prototypePeopleByProfileId,
+    resetVersion,
+  ]);
+
+  const jobTitleCount = useMemo(
+    () => currentGroups.reduce((acc, g) => acc + g.profiles.length, 0),
+    [currentGroups],
+  );
 
   const toggleGroup = (groupId: string) => {
     setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -92,6 +171,13 @@ export function JobOrganizationCard() {
 
   const handleDeleteProfile = (profile: JobProfile) => {
     setProfileToDelete(profile);
+  };
+
+  const handleReassignWithPowerEdit = () => {
+    if (!profileBlockedFromArchive) return;
+    const { id } = profileBlockedFromArchive;
+    setPrototypePeopleByProfileId((prev) => ({ ...prev, [id]: 0 }));
+    setProfileBlockedFromArchive(null);
   };
 
   const handleArchiveClick = (profile: JobProfile) => {
@@ -108,6 +194,7 @@ export function JobOrganizationCard() {
   const handleConfirmDelete = () => {
     if (profileToDelete) {
       const id = profileToDelete.id;
+      removeExtraJobProfile(id);
       setDeletedProfileIds((prev) => new Set(prev).add(id));
       setArchivedAtByProfileId((prev) => {
         const next = { ...prev };
@@ -119,6 +206,35 @@ export function JobOrganizationCard() {
   };
 
   const navigate = useNavigate();
+  const { toggleMizu } = useTheme();
+
+  const resolvedGearMenuItems = useMemo(
+    () => [organizeJobFamiliesGearItem, ...gearMenuItems],
+    [],
+  );
+
+  const handleGearMenuSelect = useCallback(
+    (itemId: string) => {
+      setGearMenuOpen(false);
+      if (itemId === organizeJobFamiliesGearItem.id) {
+        navigate('/settings/job-profiles/organize');
+      } else if (itemId === 'mizu') {
+        toggleMizu();
+      } else if (itemId === 'columns') {
+        clearExtraJobProfiles();
+        try {
+          sessionStorage.removeItem('bhr-wizard-complete');
+          sessionStorage.removeItem('bhr-job-profiles-onboarding-ingress-dismissed');
+        } catch { /* ignore */ }
+        setDeletedProfileIds(new Set());
+        setArchivedAtByProfileId({});
+        setPrototypePeopleByProfileId({});
+        setResetVersion((v) => v + 1);
+      }
+    },
+    [navigate, toggleMizu],
+  );
+
   const handleProfileClick = (profile: JobProfile) => {
     navigate(`/settings/job-profile/${profile.id}`);
   };
@@ -153,30 +269,31 @@ export function JobOrganizationCard() {
   }, [profilesListTab]);
 
   return (
-    <div className="flex min-h-[600px] bg-[var(--surface-neutral-white)] overflow-hidden">
+    <div className="flex gap-8">
       {/* Left Sidebar Navigation */}
-      <nav className="w-[200px] shrink-0 flex flex-col gap-[var(--space-xxs)] p-[var(--space-m)] bg-[var(--surface-neutral-white)]">
-        {jobOrganizationNavItems.map((item) => {
-          const isActive = item.id === activeTab;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`
-                flex items-center gap-[var(--space-xs)] px-[var(--space-s)] py-[var(--space-xs)] w-full rounded-[var(--radius-xx-small)]
-                text-[14px] font-medium transition-colors text-left
-                ${
-                  isActive
-                    ? 'bg-[var(--color-primary-strong)] text-white'
-                    : 'text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-x-weak)]'
-                }
-              `}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
+      <div className="w-[160px] shrink-0">
+        <nav className="flex flex-col">
+          {jobOrganizationNavItems.map((item) => {
+            const isActive = item.id === activeTab;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`
+                  text-left px-3 py-2 text-[15px] transition-colors rounded-[var(--radius-small)]
+                  ${
+                    isActive
+                      ? 'text-[var(--color-primary-strong)] font-semibold bg-[var(--surface-neutral-xx-weak)]'
+                      : 'text-[var(--text-neutral-medium)] hover:text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]'
+                  }
+                `}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* Main Content - Job Profiles */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -185,8 +302,8 @@ export function JobOrganizationCard() {
             {/* Title row */}
             <div className="flex items-center justify-between px-[var(--space-m)] py-[var(--space-m)]">
               <h3
-                className="text-[18px] font-semibold text-[var(--color-primary-strong)]"
-                style={{ lineHeight: '26px' }}
+                className="text-[22px] font-semibold text-[var(--color-primary-strong)]"
+                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
               >
                 Job Profiles
               </h3>
@@ -194,6 +311,14 @@ export function JobOrganizationCard() {
                 History
               </button>
             </div>
+
+            <JobProfilesOnboardingIngress
+              groupingMode={groupingMode}
+              jobTitleCount={jobTitleCount}
+              onGetStarted={() =>
+                navigate('/settings/job-profiles/organize', { state: { fromAiOnboarding: true } })
+              }
+            />
 
             {/* Current / Archived tabs */}
             <div className="border-b border-[var(--border-neutral-x-weak)] px-[var(--space-m)]">
@@ -280,12 +405,12 @@ export function JobOrganizationCard() {
                       className="absolute right-0 z-50 mt-2 min-w-[220px] rounded-[var(--radius-small)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] py-1 shadow-lg"
                       style={{ boxShadow: 'var(--shadow-300)' }}
                     >
-                      {gearMenuItems.map((item) => (
+                      {resolvedGearMenuItems.map((item) => (
                         <button
                           key={item.id}
                           type="button"
                           role="menuitem"
-                          onClick={() => setGearMenuOpen(false)}
+                          onClick={() => handleGearMenuSelect(item.id)}
                           className="flex w-full px-4 py-2.5 text-left text-[15px] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)] transition-colors"
                         >
                           {item.label}
@@ -345,6 +470,7 @@ export function JobOrganizationCard() {
                           onArchiveClick={handleArchiveClick}
                           onDeleteClick={handleDeleteProfile}
                           onProfileClick={handleProfileClick}
+                          onOpenPeopleModal={setPeopleModal}
                         />
                       ))
                     )
@@ -362,6 +488,7 @@ export function JobOrganizationCard() {
                         onArchiveClick={handleArchiveClick}
                         onDeleteClick={handleDeleteProfile}
                         onProfileClick={handleProfileClick}
+                        onOpenPeopleModal={setPeopleModal}
                       />
                     ))
                   )}
@@ -417,6 +544,7 @@ export function JobOrganizationCard() {
         <CantArchiveJobProfileModal
           employeeCount={profileBlockedFromArchive.people}
           onClose={() => setProfileBlockedFromArchive(null)}
+          onReassignWithPowerEdit={handleReassignWithPowerEdit}
         />
       )}
 
@@ -425,6 +553,15 @@ export function JobOrganizationCard() {
           jobProfileName={profileToDelete.name}
           onClose={() => setProfileToDelete(null)}
           onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      {peopleModal && (
+        <JobProfilePeopleModal
+          jobFamilyName={peopleModal.jobFamilyName}
+          jobProfileName={peopleModal.jobProfileName}
+          peopleCount={peopleModal.peopleCount}
+          onClose={() => setPeopleModal(null)}
         />
       )}
     </div>
@@ -442,6 +579,11 @@ interface JobProfileGroupRowsProps {
   onArchiveClick: (profile: JobProfile) => void;
   onDeleteClick: (profile: JobProfile) => void;
   onProfileClick: (profile: JobProfile) => void;
+  onOpenPeopleModal: (payload: {
+    jobFamilyName: string;
+    jobProfileName: string;
+    peopleCount: number;
+  }) => void;
 }
 
 function JobProfileGroupRows({
@@ -455,6 +597,7 @@ function JobProfileGroupRows({
   onArchiveClick,
   onDeleteClick,
   onProfileClick,
+  onOpenPeopleModal,
 }: JobProfileGroupRowsProps) {
   const groupRegionId = `job-profile-group-${listMode}-${group.id}`;
   const hasProfiles = group.profiles.length > 0;
@@ -523,8 +666,25 @@ function JobProfileGroupRows({
                 <td className="px-[var(--space-m)] py-[var(--space-m)] text-[15px] text-[var(--text-neutral-x-strong)] w-[160px]">
                   {archivedAtByProfileId[profile.id] ?? '—'}
                 </td>
+              ) : profile.people > 0 ? (
+                <td className="px-[var(--space-m)] py-[var(--space-m)] text-[15px]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenPeopleModal({
+                        jobFamilyName: group.name,
+                        jobProfileName: profile.name,
+                        peopleCount: profile.people,
+                      });
+                    }}
+                    className="text-[var(--color-link)] hover:underline text-left"
+                  >
+                    {profile.people}
+                  </button>
+                </td>
               ) : (
-                <td className="px-[var(--space-m)] py-[var(--space-m)] text-[15px] text-[var(--color-link)]">
+                <td className="px-[var(--space-m)] py-[var(--space-m)] text-[15px] text-[var(--text-neutral-x-strong)]">
                   {profile.people}
                 </td>
               )}

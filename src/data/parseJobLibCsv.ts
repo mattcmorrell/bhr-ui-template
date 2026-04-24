@@ -89,7 +89,8 @@ export function slugifyJobFamily(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const CAREER_LEVEL_RE = /^([EMPTS])(\d+)/;
+/** Single track letter + level, optional range suffix (e.g. M2-6 → M, 2). Rejects trailing junk. */
+const CAREER_LEVEL_RE = /^([EMPTS])(\d+)(?:-\d+)?$/;
 
 function parseCareerTrackAndLevel(raw: string): { careerTrack: string; level: string } | null {
   const m = raw.trim().match(CAREER_LEVEL_RE);
@@ -101,9 +102,19 @@ function parseCareerTrackAndLevel(raw: string): { careerTrack: string; level: st
   return { careerTrack, level: String(levelNum) };
 }
 
+/** Shape matches `JobProfile` in settingsData (avoid importing settingsData). */
+type LibImportedProfile = {
+  id: string;
+  name: string;
+  careerTrackLevel: string;
+  people: number;
+  jobDescription?: string;
+  internalJobCode?: string;
+};
+
 function buildCatalogFromRaw(raw: string): {
   rows: JobTitleCatalogRow[];
-  profileGroups: Array<{ id: string; name: string; profiles: [] }>;
+  profileGroups: Array<{ id: string; name: string; profiles: LibImportedProfile[] }>;
 } {
   const grid = parseCsv(raw);
   if (grid.length < 2) {
@@ -119,7 +130,7 @@ function buildCatalogFromRaw(raw: string): {
     return { rows: [], profileGroups: [] };
   }
 
-  const familyByLabel = new Map<string, { id: string; name: string; profiles: [] }>();
+  const familyByLabel = new Map<string, { id: string; name: string; profiles: LibImportedProfile[] }>();
   const rows: JobTitleCatalogRow[] = [];
   const seenRowKeys = new Set<string>();
   let seq = 0;
@@ -151,6 +162,7 @@ function buildCatalogFromRaw(raw: string): {
 
     seq += 1;
     const id = `lib-${String(seq).padStart(3, '0')}`;
+    const bambooJobCode = `BHR-LIB-${String(seq).padStart(3, '0')}`;
     rows.push({
       id,
       jobTitle,
@@ -159,8 +171,22 @@ function buildCatalogFromRaw(raw: string): {
       careerTrack: parsed.careerTrack,
       level: parsed.level,
       jobDescription,
-      bambooJobCode: `BHR-LIB-${String(seq).padStart(3, '0')}`,
+      bambooJobCode,
     });
+
+    const group = jobFamilyName ? familyByLabel.get(jobFamilyName) : undefined;
+    if (group) {
+      const careerTrackLevel = `${parsed.careerTrack}${parsed.level}`;
+      const profile: LibImportedProfile = {
+        id,
+        name: jobTitle,
+        careerTrackLevel,
+        people: 0,
+        internalJobCode: bambooJobCode,
+      };
+      if (jobDescription) profile.jobDescription = jobDescription;
+      group.profiles.push(profile);
+    }
   }
 
   const profileGroups = [...familyByLabel.values()].sort((a, b) =>

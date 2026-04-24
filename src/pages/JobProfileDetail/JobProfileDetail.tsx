@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Icon,
@@ -21,6 +21,8 @@ import { findExtraJobProfileById, upsertExtraJobProfile } from '../../data/extra
 import { simulateAIDelay } from '../JobAIPrototype/mockData';
 import {
   buildMockJobDescriptionDraft,
+  mockExpandJobDescription,
+  mockShortenJobDescription,
   type LinkedJobCodeEntry,
 } from './buildMockJobDescriptionDraft';
 import { jobTitleCatalogRows, type JobTitleCatalogRow } from '../../data/parseJobLibCsv';
@@ -34,6 +36,43 @@ function newCompetencyId() {
 }
 
 const AI_DRAFT_HINT_TEAL = '#005b7f';
+
+const AI_JOB_DESC_PHASES = [
+  'Comparing similar roles',
+  'Looking at related job families',
+  'Cross-checking tone',
+] as const;
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/** Second line on the linked BambooHR card: e.g. Professional (P2), or the job code if track/level unset. */
+function bambooLinkedCardSubtitle(
+  careerTrack: string,
+  level: string,
+  fallbackLabel: string
+): string {
+  if (careerTrack && level) {
+    const opt = careerTrackOptions.find((o) => o.value === careerTrack);
+    const baseName = opt?.label.replace(/\s*\([^)]+\)\s*$/, '').trim() ?? '';
+    if (baseName) {
+      return `${baseName} (${careerTrack}${level})`;
+    }
+    return `(${careerTrack}${level})`;
+  }
+  return fallbackLabel;
+}
+
+async function runAiJobDescriptionPhases(
+  setPhase: (label: string | null) => void,
+  msPerPhase = 380
+) {
+  for (const msg of AI_JOB_DESC_PHASES) {
+    setPhase(msg);
+    await delay(msPerPhase);
+  }
+}
 
 function AiDraftTitleHint() {
   return (
@@ -134,6 +173,10 @@ export function JobProfileDetail() {
 
   const [linkedJobCodes, setLinkedJobCodes] = useState<LinkedJobCodeEntry[]>([]);
   const [isAiDraftLoading, setIsAiDraftLoading] = useState(false);
+  const [aiDraftPhaseLabel, setAiDraftPhaseLabel] = useState<string | null>(null);
+  const [refineMenuOpen, setRefineMenuOpen] = useState(false);
+  const refineMenuRef = useRef<HTMLDivElement>(null);
+  const descriptionBeforeAiRef = useRef<string>('');
   const [activeCardTab, setActiveCardTab] = useState<'details' | 'competencies'>('details');
 
   const [competencies, setCompetencies] = useState<JobProfileCompetency[]>(
@@ -152,13 +195,64 @@ export function JobProfileDetail() {
     null
   );
 
+  useEffect(() => {
+    if (isNew) {
+      setJobTitle('');
+      setJobDescription('');
+      setInternalJobCode('');
+      setJobFamily('');
+      setCareerTrack('');
+      setLevel('');
+      setCompetencies([]);
+      return;
+    }
+    if (!profile) return;
+
+    setJobTitle(profile.name);
+    setJobDescription(profile.jobDescription ?? '');
+    setInternalJobCode(profile.internalJobCode ?? '');
+    setCompetencies(profile.competencies ?? []);
+
+    const jf =
+      nestedFamilyId ??
+      (profile.jobFamilyGroupId == null || profile.jobFamilyGroupId === ''
+        ? ''
+        : profile.jobFamilyGroupId);
+    setJobFamily(jf);
+    setCareerTrack(profile.careerTrackLevel ? profile.careerTrackLevel[0] ?? '' : '');
+    setLevel(
+      profile.careerTrackLevel && profile.careerTrackLevel.length > 1
+        ? profile.careerTrackLevel.slice(1)
+        : ''
+    );
+  }, [isNew, profile, nestedFamilyId]);
+
   const cardTabs = [
     { id: 'details' as const, label: 'Details' },
     { id: 'competencies' as const, label: 'Competencies' },
   ];
 
+  useEffect(() => {
+    if (!refineMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRefineMenuOpen(false);
+    };
+    const onPointerDown = (e: MouseEvent) => {
+      if (refineMenuRef.current && !refineMenuRef.current.contains(e.target as Node)) {
+        setRefineMenuOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [refineMenuOpen]);
+
   const resetAiDraftUi = () => {
     setIsAiDraftLoading(false);
+    setAiDraftPhaseLabel(null);
   };
 
   if (!isNew && !profile) {
@@ -236,17 +330,60 @@ export function JobProfileDetail() {
   const handleAiAutoDraft = async () => {
     const title = jobTitle.trim();
     if (!title || isAiDraftLoading) return;
+    descriptionBeforeAiRef.current = jobDescription;
     setIsAiDraftLoading(true);
-    await simulateAIDelay();
-    const draft = buildMockJobDescriptionDraft({
-      jobTitle: title,
-      jobFamilyLabel,
-      careerTrackLabel,
-      levelLabel,
-      linkedJobCodes,
-    });
-    setJobDescription(draft);
-    setIsAiDraftLoading(false);
+    setRefineMenuOpen(false);
+    try {
+      await runAiJobDescriptionPhases(setAiDraftPhaseLabel);
+      const draft = buildMockJobDescriptionDraft({
+        jobTitle: title,
+        jobFamilyLabel,
+        careerTrackLabel,
+        levelLabel,
+        linkedJobCodes,
+      });
+      setJobDescription(draft);
+    } finally {
+      setAiDraftPhaseLabel(null);
+      setIsAiDraftLoading(false);
+    }
+  };
+
+  const handleRefineLonger = async () => {
+    const title = jobTitle.trim();
+    if (!title || isAiDraftLoading) return;
+    const prev = jobDescription;
+    descriptionBeforeAiRef.current = prev;
+    setRefineMenuOpen(false);
+    setIsAiDraftLoading(true);
+    try {
+      await runAiJobDescriptionPhases(setAiDraftPhaseLabel);
+      setJobDescription(mockExpandJobDescription(prev, title));
+    } finally {
+      setAiDraftPhaseLabel(null);
+      setIsAiDraftLoading(false);
+    }
+  };
+
+  const handleRefineShorter = async () => {
+    const title = jobTitle.trim();
+    if (!title || isAiDraftLoading) return;
+    const prev = jobDescription;
+    descriptionBeforeAiRef.current = prev;
+    setRefineMenuOpen(false);
+    setIsAiDraftLoading(true);
+    try {
+      await runAiJobDescriptionPhases(setAiDraftPhaseLabel);
+      setJobDescription(mockShortenJobDescription(prev));
+    } finally {
+      setAiDraftPhaseLabel(null);
+      setIsAiDraftLoading(false);
+    }
+  };
+
+  const handleRejectRefinement = () => {
+    setJobDescription(descriptionBeforeAiRef.current);
+    setRefineMenuOpen(false);
   };
 
   const openCreateCompetencyModal = () => {
@@ -335,10 +472,12 @@ export function JobProfileDetail() {
     setCareerTrack(row.careerTrack);
     setLevel(row.level);
     setJobDescription(row.jobDescription);
+    descriptionBeforeAiRef.current = row.jobDescription;
     setLinkedJobCodes((prev) => [
       ...prev.filter((e) => e.source !== 'bamboohr'),
       { source: 'bamboohr', label: row.bambooJobCode },
     ]);
+    setRefineMenuOpen(false);
     resetAiDraftUi();
   };
 
@@ -473,21 +612,85 @@ export function JobProfileDetail() {
                   aria-busy={isAiDraftLoading}
                   className="flex-1 w-full min-h-[200px] md:min-h-[240px] pl-4 pr-4 pt-[9px] pb-14 bg-transparent text-[15px] leading-[22px] text-[var(--text-neutral-strong)] placeholder:text-[var(--text-neutral-weak)] outline-none resize-none"
                 />
-                <div className="absolute bottom-3 right-3">
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    icon={isAiDraftLoading ? 'spinner' : 'sparkles'}
-                    disabled={!jobTitle.trim() || isAiDraftLoading}
-                    onClick={handleAiAutoDraft}
-                    className={`shrink-0 shadow-sm ${isAiDraftLoading ? '[&_svg]:animate-spin' : ''}`}
-                  >
-                    {isAiDraftLoading
-                      ? 'Drafting…'
-                      : jobDescriptionEmpty
-                        ? 'Write it for Me'
-                        : 'Write a new draft'}
-                  </Button>
+                <div className="absolute bottom-3 left-4 right-3 flex min-h-10 flex-row items-center justify-end gap-3">
+                  {isAiDraftLoading ? (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                      className="flex max-w-full items-center justify-end gap-2 text-[13px] font-medium leading-[19px] text-[var(--text-neutral-medium)]"
+                    >
+                      <Icon
+                        name="spinner"
+                        size={16}
+                        className="shrink-0 animate-spin text-[var(--color-primary-strong)]"
+                      />
+                      <span className="truncate text-right sm:max-w-[min(100%,420px)]">
+                        {aiDraftPhaseLabel ?? 'Preparing…'}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="shrink-0">
+                    {jobDescriptionEmpty ? (
+                      <Button
+                        type="button"
+                        variant="outlined"
+                        icon="sparkles"
+                        disabled={!jobTitle.trim()}
+                        onClick={handleAiAutoDraft}
+                        className="shadow-sm"
+                      >
+                        Write it for Me
+                      </Button>
+                    ) : (
+                      <div className="relative" ref={refineMenuRef}>
+                        <Button
+                          type="button"
+                          variant="outlined"
+                          showCaret
+                          disabled={!jobTitle.trim()}
+                          aria-expanded={refineMenuOpen}
+                          aria-haspopup="menu"
+                          onClick={() => setRefineMenuOpen((o) => !o)}
+                          className="shadow-sm"
+                        >
+                          Refine
+                        </Button>
+                        {refineMenuOpen && !isAiDraftLoading && (
+                          <div
+                            role="menu"
+                            className="absolute bottom-full right-0 z-50 mb-1 min-w-[200px] overflow-hidden rounded-[var(--radius-small)] border border-[var(--border-neutral-medium)] bg-[var(--surface-neutral-white)] shadow-lg"
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="flex w-full px-4 py-3 text-left text-[15px] font-semibold leading-[22px] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                              onClick={handleRefineLonger}
+                            >
+                              Make Longer
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="flex w-full px-4 py-3 text-left text-[15px] font-semibold leading-[22px] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                              onClick={handleRefineShorter}
+                            >
+                              Make Shorter
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="flex w-full px-4 py-3 text-left text-[15px] font-semibold leading-[22px] text-[var(--text-neutral-strong)] hover:bg-[var(--surface-neutral-xx-weak)]"
+                              onClick={handleRejectRefinement}
+                            >
+                              Reject Changes
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    </div>
+                  )}
                 </div>
               </div>
               {!jobTitle.trim() && <AiDraftTitleHint />}
@@ -511,30 +714,50 @@ export function JobProfileDetail() {
                   Linked Job Codes
                 </span>
                 <span title="Link job codes from external systems">
-                  <Icon name="circle-info" variant="regular" size={16} className="text-[var(--icon-neutral-strong)]" />
+                  <Icon
+                    name="circle-question"
+                    variant="regular"
+                    size={16}
+                    className="text-[var(--icon-neutral-strong)]"
+                  />
                 </span>
               </div>
               <div
-                className="flex w-full flex-wrap items-center"
+                className="flex w-full flex-wrap items-start"
                 style={{ gap: '20px' }}
               >
                 {bambooLinkedEntry ? (
                   <div
-                    className="inline-flex items-center gap-1.5 rounded-full text-[13px] font-medium text-[var(--text-neutral-strong)] bg-[var(--surface-neutral-x-weak)] border border-[var(--border-neutral-weak)] pl-3 pr-1 py-1 shrink-0"
+                    className="relative shrink-0 w-full max-w-[320px] rounded-[var(--radius-small)] border border-[var(--border-neutral-weak)] bg-[var(--surface-neutral-white)] px-3 pt-3 pb-3 pr-9"
                     role="status"
-                    aria-label={`BambooHR job code ${bambooLinkedEntry.label}`}
+                    aria-label={`BambooHR job ${jobTitle.trim() || bambooLinkedEntry.label}, code ${bambooLinkedEntry.label}`}
                   >
-                    <span className="pl-0.5">
-                      BambooHR: {bambooLinkedEntry.label}
-                    </span>
                     <button
                       type="button"
                       onClick={() => removeLinkedCode(bambooLinkedEntry)}
-                      className="flex items-center justify-center h-7 w-7 rounded-full text-[var(--icon-neutral-strong)] hover:bg-[var(--surface-neutral-medium)] transition-colors shrink-0"
+                      className="absolute right-1 top-1 flex items-center justify-center h-7 w-7 rounded-full text-[var(--icon-neutral-strong)] hover:bg-[var(--surface-neutral-x-weak)] transition-colors"
                       aria-label="Remove BambooHR job code"
                     >
                       <Icon name="xmark" size={14} />
                     </button>
+                    <div className="flex items-center gap-1.5 mb-2 pr-5">
+                      <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#599D15] text-[12px] font-semibold leading-none text-white"
+                        style={{ fontFamily: 'system-ui, sans-serif' }}
+                        aria-hidden
+                      >
+                        b
+                      </span>
+                      <span className="text-[13px] font-medium leading-[18px] text-[var(--text-neutral-medium)]">
+                        BambooHR
+                      </span>
+                    </div>
+                    <p className="m-0 text-[15px] font-medium leading-[20px] text-[var(--text-neutral-strong)]">
+                      {jobTitle.trim() || '—'}
+                    </p>
+                    <p className="m-0 mt-0.5 text-[14px] leading-[18px] text-[var(--text-neutral-medium)]">
+                      {bambooLinkedCardSubtitle(careerTrack, level, bambooLinkedEntry.label)}
+                    </p>
                   </div>
                 ) : (
                   <Button
@@ -593,7 +816,7 @@ export function JobProfileDetail() {
 
         {activeCardTab === 'competencies' && (
           <div className="p-8 pt-6 space-y-4">
-            {competencies.length > 0 && (
+            {(competencies.length > 0 || isAiCompetenciesLoading || (pendingAiCompetencies != null && pendingAiCompetencies.length > 0)) && (
               <div className="flex flex-wrap items-center gap-3">
                 <Button type="button" variant="primary" icon="circle-plus" onClick={openCreateCompetencyModal}>
                   Create Competency
@@ -610,7 +833,7 @@ export function JobProfileDetail() {
               </div>
             )}
 
-            {competencies.length === 0 && (
+            {competencies.length === 0 && !isAiCompetenciesLoading && (pendingAiCompetencies == null || pendingAiCompetencies.length === 0) && (
               <div className="flex flex-col items-center px-4 py-10 text-center">
                 <img
                   src={competenciesEmptyChart}
@@ -789,7 +1012,7 @@ export function JobProfileDetail() {
 
 export default JobProfileDetail;
 
-/** Remount when `:id` changes so form state matches the loaded profile without a sync effect. */
+/** Remount when `:id` changes so form state matches the loaded profile. */
 export function JobProfileDetailPage() {
   const { id } = useParams<{ id: string }>();
   return <JobProfileDetail key={id ?? 'new'} />;

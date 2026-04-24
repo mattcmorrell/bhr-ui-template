@@ -12,3 +12,6 @@ export { DatePickerDemo } from './DatePickerDemo';
 export { CreateJobOpening } from './CreateJobOpening';
 export { JobAIPrototype } from './JobAIPrototype';
 export { Doom } from './Doom';
+export { OrganizeJobFamiliesPage } from './OrganizeJobFamilies';
+export { AddJobDescriptionsPage } from './AddJobDescriptions';
+export { BuildCompetenciesPage } from './BuildCompetencies';

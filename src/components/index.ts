@@ -39,6 +39,7 @@ export { JobWizardSidebar } from './JobWizardSidebar';
 export { JobInformationForm } from './JobInformationForm';
 export { SuccessNotification } from './SuccessNotification';
 export { JobOrganizationCard } from './JobOrganizationCard';
+export { JobProfilesPrototypeSettingsPanel } from './JobProfilesPrototype/JobProfilesPrototypeSettingsPanel';
 export { DeleteJobProfileModal } from './DeleteJobProfileModal';
 export { CompetencyEditModal, type CompetencyFormValues } from './CompetencyEditModal';
 export { JobTitleCatalogCombobox } from './JobTitleCatalogCombobox';

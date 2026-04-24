@@ -1,0 +1,1 @@
+export { BuildCompetenciesPage } from './BuildCompetencies';

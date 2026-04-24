@@ -3,9 +3,14 @@ import { Icon } from '../Icon';
 interface CantArchiveJobProfileModalProps {
   employeeCount: number;
   onClose: () => void;
+  onReassignWithPowerEdit: () => void;
 }
 
-export function CantArchiveJobProfileModal({ employeeCount, onClose }: CantArchiveJobProfileModalProps) {
+export function CantArchiveJobProfileModal({
+  employeeCount,
+  onClose,
+  onReassignWithPowerEdit,
+}: CantArchiveJobProfileModalProps) {
   const primaryLine =
     employeeCount === 1
       ? "You've got 1 employee assigned to this Job Profile."
@@ -75,11 +80,11 @@ export function CantArchiveJobProfileModal({ employeeCount, onClose }: CantArchi
           </button>
           <button
             type="button"
-            onClick={onClose}
+            onClick={onReassignWithPowerEdit}
             className="px-6 py-2 text-[15px] font-semibold rounded-full bg-[var(--color-primary-strong)] text-white hover:opacity-90 transition-opacity"
             style={{ boxShadow: '1px 1px 0px 1px rgba(56,49,47,0.04)' }}
           >
-            I&apos;ll Fix It
+            Reassign with Power Edit
           </button>
         </div>
       </div>

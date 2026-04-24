@@ -149,6 +149,17 @@
 }
 
 /* ================================
+   Mizu Theme
+   ================================ */
+
+:root.mizu {
+  --color-primary-strong: #1565c0;
+  --color-primary-medium: #1976d2;
+  --color-primary-weak: #e3f2fd;
+  --surface-selected-weak: #e3f2fd;
+}
+
+/* ================================
    Base Styles
    ================================ */
 

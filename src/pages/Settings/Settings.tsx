@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Icon, JobOrganizationCard } from '../../components';
+import { Icon } from '../../components';
+import { JobProfilesPrototypeSettingsPanel } from '../../components/JobProfilesPrototype/JobProfilesPrototypeSettingsPanel';
 import {
   settingsNavItems,
   accountSubTabs,
@@ -70,15 +71,7 @@ export function Settings() {
         {/* Main Content Area */}
         <main className="flex-1 px-10 pt-0 pb-10 overflow-y-auto">
           {activeNav === 'job-organization' ? (
-            <div className="bg-[var(--surface-neutral-white)] rounded-[var(--radius-medium)] p-8">
-              <h2
-                className="text-[22px] font-semibold text-[var(--color-primary-strong)] mb-6 pb-6 border-b border-[var(--border-neutral-x-weak)]"
-                style={{ fontFamily: 'Fields, system-ui, sans-serif', lineHeight: '30px' }}
-              >
-                Job Organization
-              </h2>
-              <JobOrganizationCard />
-            </div>
+            <JobProfilesPrototypeSettingsPanel />
           ) : (
             /* Account Card */
             <div className="bg-[var(--surface-neutral-white)] rounded-[var(--radius-medium)] p-8">

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
-import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype, Doom } from './pages';
+import { Home, MyInfo, People, Hiring, Reports, Files, Payroll, Settings, Inbox, NewEmployeePage, DatePickerDemo, CreateJobOpening, JobAIPrototype, Doom, OrganizeJobFamiliesPage, AddJobDescriptionsPage, BuildCompetenciesPage } from './pages';
 import { JobOpeningDetail } from './pages/JobOpeningDetail';
 import { JobProfileDetailPage } from './pages/JobProfileDetail';
 import { Chat } from './pages/Chat';
@@ -44,6 +44,9 @@ function App() {
                   <Route path="/inbox" element={<Inbox />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/job-profile/:id" element={<JobProfileDetailPage />} />
+                  <Route path="/settings/job-profiles/organize" element={<OrganizeJobFamiliesPage />} />
+                  <Route path="/settings/job-profiles/add-descriptions" element={<AddJobDescriptionsPage />} />
+                  <Route path="/settings/job-profiles/build-competencies" element={<BuildCompetenciesPage />} />
                   <Route path="/doom" element={<Doom />} />
                 </Routes>
               </AppLayout>

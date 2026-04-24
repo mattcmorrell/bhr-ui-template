@@ -79,5 +79,75 @@ export function bucketJobProfilesToGroups(
     }
   }
 
-  return result;
+  // Deduplicate by name across all groups — first occurrence wins, people counts are summed.
+  const seenNames = new Map<string, string>();
+  const peopleById = new Map<string, number>();
+  for (const g of result) {
+    for (const p of g.profiles) {
+      const key = p.name.trim().toLowerCase();
+      if (!seenNames.has(key)) {
+        seenNames.set(key, p.id);
+        peopleById.set(p.id, p.people);
+      } else {
+        const keeperId = seenNames.get(key)!;
+        peopleById.set(keeperId, (peopleById.get(keeperId) ?? 0) + p.people);
+      }
+    }
+  }
+  const emittedIds = new Set<string>();
+  return result
+    .map((g) => ({
+      ...g,
+      profiles: g.profiles
+        .filter((p) => {
+          const key = p.name.trim().toLowerCase();
+          if (seenNames.get(key) !== p.id) return false;
+          if (emittedIds.has(p.id)) return false;
+          emittedIds.add(p.id);
+          return true;
+        })
+        .map((p) => ({ ...p, people: peopleById.get(p.id) ?? p.people })),
+    }))
+    .filter((g) => g.profiles.length > 0);
+}
+
+/** Prototype: one Unassigned group with mapping fields cleared. */
+export function bucketUnassignedStartingGroups(
+  staticGroups: JobProfileGroup[],
+  extraProfiles: JobProfile[],
+  deletedProfileIds: Set<string>,
+  archivedAtByProfileId: Record<string, string>,
+  mode: 'current' | 'archived',
+): JobProfileGroup[] {
+  const mapped = bucketJobProfilesToGroups(
+    staticGroups,
+    extraProfiles,
+    deletedProfileIds,
+    archivedAtByProfileId,
+    mode,
+  );
+
+  const seen = new Set<string>();
+  const profiles: JobProfile[] = [];
+  for (const g of mapped) {
+    for (const p of g.profiles) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      profiles.push({
+        ...p,
+        jobFamilyGroupId: null,
+        careerTrackLevel: '',
+      });
+    }
+  }
+
+  if (profiles.length === 0) return [];
+
+  return [
+    {
+      id: UNASSIGNED_GROUP_ID,
+      name: 'Unassigned',
+      profiles,
+    },
+  ];
 }
